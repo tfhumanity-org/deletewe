@@ -39,6 +39,12 @@ jobs:
         # against recorded fixtures or the local mock broker server.
         run: npm test
 
+      - name: Audit dependencies
+        # This repository's whole premise is careful handling of other people's
+        # personal data, so a known-vulnerable dependency is a product defect,
+        # not a chore. Fails the build on high or critical.
+        run: npm audit --audit-level=high
+
   catalog:
     name: broker catalogue
     runs-on: ubuntu-latest

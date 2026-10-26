@@ -26,6 +26,11 @@ RUN npm ci --ignore-scripts
 COPY . .
 RUN npm run build
 
+# Drop the build-time dependencies before they can be copied into the runtime
+# image. Without this the shipped image carries eslint, typescript and the
+# vitest worker pool — none of them reachable, all of them avoidable surface.
+RUN npm prune --omit=dev
+
 FROM node:24-alpine AS runtime
 WORKDIR /app
 

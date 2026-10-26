@@ -88,14 +88,12 @@ export async function generateReport(
 
   const pdf = renderReportPdf(summary);
   const blobKey = `reports/${params.memberId}/${periodEnd}.pdf`;
-  let storedKey: string | null = null;
-  try {
-    await ctx.ports.blobs.put(blobKey, await ctx.store.encryptBlob(params.dek, params.memberId, pdf), 'application/pdf');
-    storedKey = blobKey;
-  } catch {
-    // A report for this period already exists; keep the original.
-    storedKey = blobKey;
-  }
+  // Reports are write-once like evidence, so a conflict here means a report
+  // for this period already exists and the original stands. Either way the
+  // key is the one to record.
+  await ctx.ports.blobs
+    .put(blobKey, await ctx.store.encryptBlob(params.dek, params.memberId, pdf), 'application/pdf')
+    .catch(() => undefined);
 
   const reportId = await ctx.store.createReport({
     memberId: params.memberId,
@@ -103,7 +101,7 @@ export async function generateReport(
     periodStart,
     periodEnd,
     summary,
-    blobKey: storedKey,
+    blobKey,
   });
 
   ctx.log.info('report_generated', {
@@ -112,7 +110,7 @@ export async function generateReport(
     awaitingYou: summary.totals.awaitingYou,
   });
 
-  return { reportId, summary, blobKey: storedKey };
+  return { reportId, summary, blobKey };
 }
 
 const STATE_LABELS: Readonly<Record<CaseState, string>> = {

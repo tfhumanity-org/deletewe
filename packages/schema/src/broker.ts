@@ -18,7 +18,7 @@ const slug = z
 
 const semver = z.string().regex(/^\d+\.\d+\.\d+$/, 'must be semver, e.g. 1.0.0');
 
-const httpsUrl = z.string().url().startsWith('https://', 'must be https');
+const httpsUrl = z.url().startsWith('https://', 'must be https');
 
 /** Hostname only: no scheme, no path, no port. */
 const host = z
@@ -102,7 +102,9 @@ const searchBlock = z.discriminatedUnion('method', [
 export type SearchBlock = z.infer<typeof searchBlock>;
 
 const matchBlock = z.object({
-  fields: z.record(z.enum(MATCH_FIELDS), z.number().min(0).max(1)).refine(
+  // `partialRecord`, not `record`: a record keyed by an enum is exhaustive in
+  // Zod 4, and a broker weights only the fields its listings actually expose.
+  fields: z.partialRecord(z.enum(MATCH_FIELDS), z.number().min(0).max(1)).refine(
     (f) => Object.keys(f).length > 0,
     'at least one match field is required',
   ),
@@ -118,8 +120,8 @@ const matchBlock = z.object({
 export type MatchBlock = z.infer<typeof matchBlock>;
 
 const emailBlock = z.object({
-  to: z.string().email(),
-  cc: z.array(z.string().email()).optional(),
+  to: z.email(),
+  cc: z.array(z.email()).optional(),
   subject_template: z.string().min(1).max(300),
   body_template: z.string().min(1).max(10_000),
 });
@@ -190,7 +192,7 @@ export const brokerDefinitionSchema = z
      * Absent means the procedure is theoretical. See docs/broker-catalog.md section 6.
      */
     verified_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be an ISO date').optional(),
-    references: z.array(z.string().url()).default([]),
+    references: z.array(z.url()).default([]),
     notes: z.string().max(5000).optional(),
     enabled: z.boolean().default(true),
   })

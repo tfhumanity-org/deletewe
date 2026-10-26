@@ -21,8 +21,8 @@ npm run typecheck
 npm test
 npm run test:watch
 
-npm run dev            # self-hosted app on :8787
-npm run mock-broker    # stand-in broker on :8788
+npm run dev            # self-hosted app on :8787  — FOREGROUND, own terminal
+npm run mock-broker    # stand-in broker on :8788  — FOREGROUND, own terminal
 npm run cli -- help
 
 npm run catalog:validate   # schema + cross-field rules
@@ -32,6 +32,10 @@ npm run schema:emit        # regenerate the JSON Schema for editors
 ```
 
 `npm run verify` is the only gate that matters. Run it before every commit.
+
+`dev` and `mock-broker` block the terminal. They are separate sessions, not
+steps in a sequence. The CLI talks to the same `./data` directory as a running
+`dev` server, so you can drive one from the other.
 
 ## Layout
 
@@ -114,6 +118,7 @@ continue;
 | `tsc -b` | Type errors across the whole project graph, including tests |
 | `vitest` | Behaviour and security properties |
 | `catalog:validate` | Definitions that over-collect, reach off-allowlist, or overclaim automation |
+| `npm audit --audit-level=high` | Known-vulnerable dependencies. In a project handling other people's identity data that is a product defect, not a chore |
 | Docker build in CI | A self-host image that does not boot |
 
 ## Deploying

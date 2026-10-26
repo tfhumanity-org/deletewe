@@ -74,23 +74,34 @@ build step, which is why self-hosting has no compile dependencies).
 
 ```bash
 npm ci
-npm run build
-npm run verify        # lint, typecheck, 177 tests — all must pass
-
-# start the self-hosted app
-npm run dev           # http://localhost:8787
-
-# create an operator account for the admin console at /admin
-npm run cli -- admin create ops 'a-sufficiently-long-password'
+npm run verify        # lint, typecheck, 184 tests — all must pass
 ```
+
+Then start the app. **`npm run dev` runs in the foreground**, so give it its own
+terminal — the commands below it are separate sessions, not a sequence to paste:
+
+```bash
+npm run dev           # terminal 1: the app, http://localhost:8787
+```
+
+```bash
+npm run mock-broker   # terminal 2 (optional): a stand-in broker on :8788
+```
+
+```bash
+# terminal 3: the CLI, against the same ./data directory
+npm run cli -- admin create ops 'a-sufficiently-long-password'
+npm run cli -- catalog report
+```
+
+On first boot an encryption key is written to `./data/keys.json` (gitignored).
+Back it up before you put anything real in.
 
 ### Try the whole loop without touching a real broker
 
-```bash
-npm run mock-broker   # a stand-in broker on :8788 with same-name decoys
-```
+Start the mock broker above, then sign up at `http://localhost:8787`, fill in a
+profile, and run a scan from the profile page.
 
-Then sign up at `http://localhost:8787`, fill in a profile, and run a scan.
 The full loop — scan, match, confirm, submit, email verification, re-check —
 is covered by [`tests/src/e2e.test.ts`](tests/src/e2e.test.ts), which drives
 the engine against that server over real HTTP.
