@@ -40,7 +40,8 @@ export default tseslint.config(
   },
   {
     // Binaries and the mock broker legitimately write to stdout.
-    files: ['**/bin/**/*.ts', '**/bin.ts', 'apps/mock-broker/**/*.ts', 'apps/selfhost/**/*.ts', 'packages/cli/**/*.ts'],
+    // Log sinks and CLI entrypoints legitimately write to stdout.
+    files: ['**/bin/**/*.ts', '**/bin.ts', 'apps/**/*.ts', 'packages/cli/**/*.ts'],
     rules: { 'no-console': 'off' },
   },
   {

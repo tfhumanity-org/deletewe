@@ -26,6 +26,12 @@
     },
     {
       "path": "../packages/adapters-node"
+    },
+    {
+      "path": "../packages/web"
+    },
+    {
+      "path": "../apps/mock-broker"
     }
   ]
 }

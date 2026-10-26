@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 const pkg = (name: string, dir = name) =>
   fileURLToPath(new URL(`./packages/${dir}/src/index.ts`, import.meta.url));
 
+const app = (name: string) => fileURLToPath(new URL(`./apps/${name}/src/index.ts`, import.meta.url));
+
 export default defineConfig({
   resolve: {
     alias: {
@@ -14,6 +16,7 @@ export default defineConfig({
       '@deletewe/adapters-node': pkg('adapters-node'),
       '@deletewe/adapters-cf': pkg('adapters-cf'),
       '@deletewe/web': pkg('web'),
+      '@deletewe/mock-broker': app('mock-broker'),
     },
   },
   test: {

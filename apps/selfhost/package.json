@@ -1,0 +1,18 @@
+{
+  "name": "@deletewe/selfhost",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@deletewe/adapters-node": "*",
+    "@deletewe/browser": "*",
+    "@deletewe/catalog": "*",
+    "@deletewe/engine": "*",
+    "@deletewe/web": "*",
+    "@hono/node-server": "^1.19.6",
+    "hono": "^4.10.3"
+  }
+}

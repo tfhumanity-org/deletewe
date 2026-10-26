@@ -9,6 +9,9 @@
     "@deletewe/browser": "*",
     "@deletewe/catalog": "*",
     "@deletewe/engine": "*",
-    "@deletewe/schema": "*"
+    "@deletewe/schema": "*",
+    "@deletewe/web": "*",
+    "@deletewe/mock-broker": "*",
+    "@hono/node-server": "^1.19.6"
   }
 }

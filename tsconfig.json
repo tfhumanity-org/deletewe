@@ -20,6 +20,9 @@
       "path": "packages/adapters-cf"
     },
     {
+      "path": "packages/web"
+    },
+    {
       "path": "packages/cli"
     },
     {

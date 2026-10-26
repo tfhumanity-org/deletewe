@@ -1,0 +1,52 @@
+# deletewe — hosted deployment on Cloudflare.
+#
+# Nothing here is deployed by the build. Fill in the ids, set the secrets, and
+# read docs/playbook/working-in-this-repo.md before you run `wrangler deploy`.
+
+name = "deletewe"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+BASE_URL = "https://deletewe.example"
+INBOUND_DOMAIN = "deletewe.example"
+INBOUND_LOCAL = "optout"
+LOG_LEVEL = "info"
+
+# Secrets (never in this file):
+#   wrangler secret put MASTER_KEY     # 64 hex chars
+#   wrangler secret put INDEX_KEY      # 64 hex chars, stored separately
+#   wrangler secret put MAIL_API_KEY
+
+[[d1_databases]]
+binding = "DB"
+database_name = "deletewe"
+database_id = "REPLACE_ME"
+
+[[r2_buckets]]
+binding = "EVIDENCE"
+bucket_name = "deletewe-evidence"
+
+[[queues.producers]]
+binding = "JOBS"
+queue = "deletewe-jobs"
+
+[[queues.consumers]]
+queue = "deletewe-jobs"
+max_batch_size = 5
+max_concurrency = 2
+max_retries = 1          # the engine owns retries; see ADR-0001
+
+# Browser Rendering, for brokers whose opt-out flow needs real rendering.
+# Without it the fetch driver handles plain HTML forms and cannot screenshot.
+[browser]
+binding = "BROWSER"
+
+[triggers]
+# Sweeps due re-checks and pending jobs. Quarterly waits live as rows with a
+# run_after, not as queue delays, so they survive a deploy.
+crons = ["*/10 * * * *"]
+
+[observability]
+enabled = true
