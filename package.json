@@ -1,0 +1,45 @@
+{
+  "name": "deletewe",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Open-source personal data removal agent",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "tsc -b --clean && rm -rf packages/*/dist apps/*/dist",
+    "typecheck": "tsc -b",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify": "npm run lint && npm run typecheck && npm run test",
+    "catalog:validate": "npm run build --silent && node packages/catalog/dist/bin/validate.js",
+    "catalog:report": "npm run build --silent && node packages/catalog/dist/bin/report.js",
+    "catalog:test": "vitest run packages/catalog",
+    "broker:new": "npm run build --silent && node packages/catalog/dist/bin/new-broker.js",
+    "schema:emit": "npm run build --silent && node packages/schema/dist/bin/emit-json-schema.js",
+    "dev": "npm run build --silent && node apps/selfhost/dist/main.js",
+    "cli": "npm run build --silent && node packages/cli/dist/bin.js",
+    "mock-broker": "npm run build --silent && node apps/mock-broker/dist/main.js",
+    "migrate": "npm run build --silent && node packages/cli/dist/bin.js db migrate"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.37.0",
+    "@types/node": "^24.9.1",
+    "eslint": "^9.37.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.0",
+    "vitest": "^3.2.4"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}
