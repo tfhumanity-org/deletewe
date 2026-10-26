@@ -44,7 +44,7 @@ export interface Logger {
  */
 const PII_SHAPES: readonly [RegExp, string][] = [
   [/[\w.+-]+@[\w-]+\.[\w.-]+/g, '[email]'],
-  [/\b(?:\+?1[-. ]?)?\(?\d{3}\)?[-. ]?\d{3}[-. ]?\d{4}\b/g, '[phone]'],
+  [/(?<![\d-])(?:\+?1[-. ]?)?\(?\d{3}\)?[-. ]?\d{3}[-. ]?\d{4}(?![\d-])/g, '[phone]'],
   [/\b\d{3}-\d{2}-\d{4}\b/g, '[ssn]'],
   [/\b\d{1,5}\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+(?:St|Street|Ave|Avenue|Rd|Road|Blvd|Dr|Drive|Ln|Lane|Ct|Court|Way)\b\.?/g, '[address]'],
   [/\b\d{4}-\d{2}-\d{2}\b/g, '[date]'],

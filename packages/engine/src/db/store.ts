@@ -67,6 +67,20 @@ export class Store {
     private readonly clock: Clock,
   ) {}
 
+  /** Evidence blobs are encrypted with the member DEK before they reach storage. */
+  async encryptBlob(dek: Uint8Array, memberId: string, bytes: Uint8Array): Promise<Uint8Array> {
+    return this.crypto.encryptBytes(dek, memberId, bytes);
+  }
+
+  async decryptBlob(dek: Uint8Array, memberId: string, bytes: Uint8Array): Promise<Uint8Array> {
+    return this.crypto.decryptBytes(dek, memberId, bytes);
+  }
+
+  /** Stable per-broker dedup key. Keyed, so it leaks nothing about the URL. */
+  async dedupHash(brokerId: string, externalKeyOrUrl: string): Promise<string> {
+    return this.crypto.blindIndex(`listing:${brokerId}`, externalKeyOrUrl);
+  }
+
   // --- Members -------------------------------------------------------------
 
   async createMember(params: {
