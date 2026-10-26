@@ -1,0 +1,13 @@
+{
+  "search": {
+    "candidates": 3,
+    "shouldMatch": [{ "name": "Ada Lovelace", "locality": "Berkeley", "region": "CA", "age": "Age 46" }],
+    "shouldNotMatch": ["Miami", "Tulsa"]
+  },
+  "optOut": {
+    "reachesHandoff": true,
+    "handoffReason": "captcha",
+    "fieldsSent": []
+  },
+  "_note": "optOut.fieldsSent is empty because this definition hands off at the CAPTCHA before submitting anything. That is the expected outcome, not a gap."
+}

@@ -1,0 +1,15 @@
+# Broker definitions are the one place an outside contribution can influence
+# what leaves the system, so they get a closer read than anything else.
+/packages/catalog/brokers/   @tfhumanity-org/maintainers
+/packages/catalog/fixtures/  @tfhumanity-org/maintainers
+
+# The security-critical core.
+/packages/engine/src/crypto.ts      @tfhumanity-org/maintainers
+/packages/engine/src/logger.ts      @tfhumanity-org/maintainers
+/packages/engine/src/projection.ts  @tfhumanity-org/maintainers
+/packages/schema/src/                @tfhumanity-org/maintainers
+
+# Documents a member legally signs.
+/packages/engine/src/documents.ts   @tfhumanity-org/maintainers
+
+/SECURITY.md  @tfhumanity-org/maintainers

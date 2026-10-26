@@ -1,0 +1,10 @@
+From: privacy@mylife.com
+To: optout+fixturetoken@agent.test
+Subject: Re: Authorized agent deletion request
+Authentication-Results: mx.agent.test; spf=pass; dkim=pass
+Content-Type: text/plain; charset=utf-8
+
+Thank you for your request. We have received it and will process it within
+45 days as required.
+
+Reference: FIXTURE-0001

@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'build/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: lint, typecheck, test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck and build
+        run: npm run typecheck
+
+      - name: Test
+        # No network access to any real broker: every broker-facing test runs
+        # against recorded fixtures or the local mock broker server.
+        run: npm test
+
+  catalog:
+    name: broker catalogue
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+      - name: Validate every broker definition
+        run: node packages/catalog/dist/bin/validate.js
+
+      - name: Print the coverage breakdown
+        run: node packages/catalog/dist/bin/report.js
+
+  docker:
+    name: self-host image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the self-host image
+        run: docker build -t deletewe:ci .
+
+      - name: Boot it and check health
+        run: |
+          docker run -d --name deletewe-ci -p 8787:8787 \
+            -e DELETEWE_DATA_DIR=/data deletewe:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8787/healthz; then
+              echo "healthy"
+              docker rm -f deletewe-ci
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "did not become healthy"
+          docker logs deletewe-ci
+          docker rm -f deletewe-ci
+          exit 1

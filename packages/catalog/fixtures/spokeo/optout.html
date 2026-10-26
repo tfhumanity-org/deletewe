@@ -1,0 +1,13 @@
+<!doctype html>
+<!-- Synthetic stand-in for the Spokeo opt-out form. See search.html. -->
+<html lang="en">
+  <body>
+    <form method="post" action="/optout/submit">
+      <input type="hidden" name="authenticity_token" value="fixture-token" />
+      <input type="text" name="url" value="" />
+      <input type="email" name="email" value="" />
+      <div class="g-recaptcha" data-sitekey="fixture"></div>
+      <button type="submit">Submit removal request</button>
+    </form>
+  </body>
+</html>

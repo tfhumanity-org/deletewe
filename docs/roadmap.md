@@ -6,13 +6,13 @@ coherent release; "later" is direction, not commitment.
 ## MVP — in this repository
 
 The goal of the MVP is **a complete, honest pipeline end to end**, not breadth
-of broker coverage. A working loop over 27 brokers is worth more than 900
+of broker coverage. A working loop over 29 brokers is worth more than 900
 untested definitions.
 
 | Area | Status |
 | --- | --- |
 | Broker definition schema + validator | ✅ |
-| 27 seeded broker definitions covering every method and automation level | ✅ (selectors unverified against live sites — see [broker-catalog.md](broker-catalog.md) §6) |
+| 29 seeded broker definitions covering every automation level and all but one opt-out method | ✅ (selectors unverified against live sites — see [broker-catalog.md](broker-catalog.md) §6) |
 | Fixture-based broker tests, no live traffic in CI | ✅ |
 | Scan → match (explained confidence) → consent gate → submit | ✅ |
 | Submit via form, email, letter (PDF) | ✅ |

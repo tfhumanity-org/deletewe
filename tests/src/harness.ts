@@ -117,9 +117,14 @@ export async function createHarness(options: HarnessOptions): Promise<Harness> {
     });
   }
 
+  let disposed = false;
   return {
     ctx, store, ports, clock, queue, mailer, browser, logs, inbound, blobs,
+    // Idempotent: suites share an afterEach, so dispose can be called twice.
     dispose: () => {
+      if (disposed) return;
+      disposed = true;
+      queue.stop();
       db.close();
       rmSync(dir, { recursive: true, force: true });
     },

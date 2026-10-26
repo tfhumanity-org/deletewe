@@ -148,7 +148,8 @@ slug of the member's name, produced by the engine.
 ## 4. Validation
 
 ```bash
-pnpm catalog:validate     # schema + cross-field rules, all definitions
+npm run catalog:validate     # schema + cross-field rules, all definitions
+npm run catalog:report       # the honest coverage breakdown
 ```
 
 Beyond the Zod schema, the validator enforces:
@@ -173,55 +174,85 @@ Definitions are tested against **recorded fixtures**, never live brokers. CI
 makes no outbound request to any real site.
 
 ```
-packages/catalog/fixtures/<broker-id>/
-  search.html         # a recorded search-results page (synthetic or redacted)
-  listing.html
-  optout-form.html
-  verification-email.eml
-  expected.json       # extracted listings, scores, and the expected outcome
+packages/catalog/fixtures/
+  _identities.json         # synthetic people to use everywhere
+  <broker-id>/
+    search.html            # a results page, including same-name decoys
+    optout.html            # the opt-out form
+    verification-email.eml # a confirmation email, if the broker sends one
+    expected.json          # what the engine should conclude
 ```
 
 ```bash
-pnpm catalog:test                 # all
-pnpm catalog:test --broker spokeo # one
+npm test -- tests/src/catalog-fixtures.test.ts
 ```
 
-The fixture runner mounts the HTML in the mock browser driver, runs the real
-search/extract/match code paths against it, and asserts `expected.json`.
+`tests/src/catalog-fixtures.test.ts` loads a **real shipped definition** from
+the catalogue, serves its fixtures through the fixture browser driver, and runs
+the production scan, match and submit paths against them. It asserts the things
+that matter: that the selectors extract every result, that both same-name
+decoys are discarded, that the listing URL resolves to the broker's own host,
+and — for an `assisted` definition — that the run genuinely stops at the
+handoff without submitting anything.
 
-**Fixtures must not contain a real person's data.** Use the synthetic identities
-in `packages/catalog/fixtures/_identities.json`. A test asserts no fixture
-contains a value from a small deny-list of well-known real names, and
+What a fixture cannot tell you is whether a selector matches the real site.
+Only running it against the live broker does that, which is why `verified_at`
+exists and why it is empty.
+
+**Fixtures must not contain a real person's data.** Use the synthetic
+identities in `packages/catalog/fixtures/_identities.json`. A test checks the
+committed fixtures against a deny-list of real-looking identifiers, and
 contributors are asked to redact aggressively. See
-[CONTRIBUTING.md](../CONTRIBUTING.md).
+[CONTRIBUTING.md](../CONTRIBUTING.md) and
+[the fixtures README](../packages/catalog/fixtures/README.md).
+
+**Decoys are not optional.** A fixture containing only the right person tests
+nothing about the matcher's hardest job, which is refusing a stranger who
+shares a surname.
 
 ## 6. Seeded brokers
 
-The repo ships **27 definitions**, chosen for coverage of the method matrix
-rather than for headline count — every opt-out method, every verification
-method, and every automation level is represented so the engine's paths are all
-exercised.
+The repo ships **29 definitions**, chosen for coverage of the method matrix
+rather than for headline count — the point is that every code path in the
+engine is exercised by a real shipped definition, not that the number is large.
 
-Run `pnpm catalog:report` for the live breakdown. At time of writing:
+Run `npm run cli -- catalog report` for the live breakdown. At time of writing:
 
 | Dimension | Breakdown |
 | --- | --- |
-| Method | form, email, letter, account, phone, drop |
-| Verification | none, email_link, phone_code, account_login |
-| Automation | automated, assisted, manual, unsupported |
+| Automation | assisted 22, automated 5, manual 1, unsupported 1 |
+| Method | form 23, email 3, drop 1, letter 1, account 1 |
+| Verification | email_link 20, none 7, account_login 1, phone_code 1 |
+| Category | people_search 13, background_check 6, public_records 4, identity_graph 2, marketing 2, risk_fraud 1, other 1 |
+
+Two entries are deliberately not conventional brokers:
+
+- **`california-drop`** models the statutory DROP channel as a catalogue entry,
+  so the integration point is concrete rather than hypothetical
+  ([research](research/05-legal-basis.md)).
+- **`oracle-data-cloud`** ships `unsupported` and **disabled**. It is what an
+  honest entry looks like when we know a broker exists and have no procedure we
+  trust. Counting entries like it towards a coverage number is precisely the
+  practice [research/02](research/02-broker-coverage.md) criticises.
+
+**The `phone` method has no seed.** The engine supports it and the validator
+enforces that a phone opt-out can never claim to be `automated`, but we did not
+want to publish a telephone number we had not confirmed from a primary source.
+`i-360` carries a sourced phone alternative in `opt_out.phone` alongside its
+web form, which exercises the field without inventing anything.
 
 Seeds were selected from the major US people-search sites named across public
 opt-out literature, plus entries representative of the California Data Broker
 Registry's marketing and identity-graph categories
 ([research](research/02-broker-coverage.md)).
 
-> **Important caveat shipped with the catalogue.** The step selectors in these
+> **The caveat that ships with the catalogue.** The step selectors in these
 > seeds were authored from public documentation and the structure of published
 > opt-out guides. They have **not** been executed against live broker sites —
-> doing so was outside the authorised scope of this build. Treat every
-> definition as `unverified` until someone runs it against the real site and
-> flips `verified_at`. The schema carries that field, the validator warns when
-> it is absent, and the admin broker-health page surfaces it.
+> doing so was outside the authorised scope of this build. Every definition is
+> therefore unverified: the schema carries `verified_at`, the validator warns
+> when it is absent, the admin broker-health page shows "never", and a test
+> asserts the claim stays honest until someone actually runs one.
 
 ## 7. Adding a broker
 
@@ -229,11 +260,10 @@ Full checklist: [playbook/adding-a-broker.md](playbook/adding-a-broker.md).
 Short form:
 
 ```bash
-pnpm broker:new <id>          # scaffolds YAML + fixture directory
+npm run broker:new -- <id>    # scaffolds YAML + fixture directory
 # fill in the definition, record fixtures
-pnpm catalog:validate
-pnpm catalog:test --broker <id>
-pnpm verify                   # lint + typecheck + full test suite
+npm run catalog:validate
+npm run verify                # lint + typecheck + full test suite
 ```
 
 ## 8. Governance

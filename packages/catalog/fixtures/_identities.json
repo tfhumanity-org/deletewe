@@ -1,0 +1,33 @@
+{
+  "_note": "Synthetic identities for fixtures. Never put a real person's data in a fixture — this repository exists to get that data taken down, not to publish more of it. Addresses use ranges reserved for documentation or obviously fictional values.",
+  "primary": {
+    "name": { "first": "Ada", "middle": "Byron", "last": "Lovelace" },
+    "aliases": [{ "first": "Augusta", "last": "King" }],
+    "address": {
+      "line1": "12 St James Square",
+      "city": "Berkeley",
+      "region": "CA",
+      "postalCode": "94704",
+      "country": "US"
+    },
+    "email": "ada@member.test",
+    "phone": "+1 510 555 0101",
+    "dob": "1979-12-10"
+  },
+  "decoys": [
+    {
+      "_why": "Same name, wrong city and age. Must score below the review threshold.",
+      "name": "Ada Lovelace",
+      "city": "Miami",
+      "region": "FL",
+      "age": "Age 23"
+    },
+    {
+      "_why": "Unrelated person. Must score near zero.",
+      "name": "Hannah Lindqvist",
+      "city": "Tulsa",
+      "region": "OK",
+      "age": "Age 66"
+    }
+  ]
+}
