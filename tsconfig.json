@@ -1,15 +1,38 @@
 {
   "files": [],
   "references": [
-    { "path": "packages/schema" },
-    { "path": "packages/catalog" },
-    { "path": "packages/engine" },
-    { "path": "packages/adapters-node" },
-    { "path": "packages/adapters-cf" },
-    { "path": "packages/web" },
-    { "path": "packages/cli" },
-    { "path": "apps/worker" },
-    { "path": "apps/selfhost" },
-    { "path": "apps/mock-broker" }
+    {
+      "path": "packages/schema"
+    },
+    {
+      "path": "packages/catalog"
+    },
+    {
+      "path": "packages/browser"
+    },
+    {
+      "path": "packages/engine"
+    },
+    {
+      "path": "packages/adapters-node"
+    },
+    {
+      "path": "packages/adapters-cf"
+    },
+    {
+      "path": "packages/cli"
+    },
+    {
+      "path": "apps/worker"
+    },
+    {
+      "path": "apps/selfhost"
+    },
+    {
+      "path": "apps/mock-broker"
+    },
+    {
+      "path": "tests"
+    }
   ]
 }

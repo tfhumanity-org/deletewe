@@ -47,7 +47,6 @@ function hostAllowed(host: string, allowlist: readonly string[]): boolean {
  * docs/threat-model.md TB8 — host containment, field containment, and honesty
  * about the automation level.
  */
-// eslint-disable-next-line complexity
 export function checkDefinition(raw: unknown, filename?: string): ValidationResult {
   const parsed = brokerDefinitionSchema.safeParse(raw);
   if (!parsed.success) {

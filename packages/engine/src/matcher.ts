@@ -174,11 +174,24 @@ export function nameSimilarity(a: string, b: string): number {
   const bGiven = bt.slice(0, -1).map(canonicalGivenName);
   if (aGiven.length === 0 || bGiven.length === 0) return round(surname * 0.6);
 
-  const givenScores = aGiven.map((token) => Math.max(...bGiven.map((other) => givenNameSimilarity(token, other))));
-  const givenAvg = givenScores.reduce((n, s) => n + s, 0) / givenScores.length;
+  const first = givenNameSimilarity(aGiven[0]!, bGiven[0]!);
+
+  // Middle names only count when both sides supply one. A broker listing a
+  // member's first and last name is not a weaker match for omitting the
+  // middle name the member happens to have told us about.
+  const aMiddle = aGiven.slice(1);
+  const bMiddle = bGiven.slice(1);
+  const middle =
+    aMiddle.length === 0 || bMiddle.length === 0
+      ? 1
+      : bMiddle
+          .map((token) => Math.max(...aMiddle.map((other) => givenNameSimilarity(token, other))))
+          .reduce((n, s) => n + s, 0) / bMiddle.length;
+
+  const given = first * 0.85 + middle * 0.15;
 
   // Surname is the gate; given names decide how confident we are.
-  return round(surname * 0.45 + givenAvg * 0.55);
+  return round(surname * 0.45 + given * 0.55);
 }
 
 function givenNameSimilarity(a: string, b: string): number {

@@ -21,7 +21,6 @@ export interface ProjectionContext {
   readonly now: number;
 }
 
-// eslint-disable-next-line complexity
 function resolveField(field: ProfileField, ctx: ProjectionContext): string | undefined {
   const { profile } = ctx;
   const name = profile.names[0];
@@ -84,6 +83,7 @@ export function missingFields(fields: readonly ProfileField[], projection: Field
 
 const PLACEHOLDER = /\{\{\s*([a-z_]+)\s*\}\}/g;
 /** C0 and C1 control characters, stripped so a value cannot inject mail headers. */
+// eslint-disable-next-line no-control-regex -- stripping controls is the point
 const CONTROL_CHARS = new RegExp('[\\u0000-\\u001f\\u007f-\\u009f]', 'g');
 
 /**

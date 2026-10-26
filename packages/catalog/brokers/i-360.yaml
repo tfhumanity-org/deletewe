@@ -1,0 +1,108 @@
+# i-360
+#
+# UNVERIFIED. Authored from public opt-out documentation; never executed
+# against the live site. Treat every selector as theoretical until someone
+# runs it and sets `verified_at`. See docs/broker-catalog.md section 6.
+
+id: i-360
+name: "i-360"
+homepage: https://i-360.com
+version: 1.0.0
+category: marketing
+jurisdictions:
+  - US
+hosts:
+  - i-360.com
+  - www.i-360.com
+
+automation:
+  level: assisted
+  reason: "CAPTCHA on the opt-out form"
+
+search:
+  method: none
+
+match:
+  fields:
+    name: 1.0
+  thresholds:
+    review: 0.5
+    auto_confirm: 0.92
+  require_manual_confirmation: true
+
+opt_out:
+  method: form
+  url: https://i-360.com/privacy-request
+  phone: "+1-844-611-2737"
+  required_fields:
+    - full_name
+    - address
+    - city
+    - region
+    - postal_code
+    - email
+  steps:
+    - id: open
+      action: goto
+      url: "https://i-360.com/privacy-request"
+      expect: { selector_present: "form" }
+    - id: name
+      action: fill
+      selector: "input[name=\"name\"]"
+      value: "{{full_name}}"
+    - id: address
+      action: fill
+      selector: "input[name=\"address\"]"
+      value: "{{address}}"
+    - id: city
+      action: fill
+      selector: "input[name=\"city\"]"
+      value: "{{city}}"
+    - id: state
+      action: select
+      selector: "select[name=\"state\"]"
+      value: "{{region}}"
+    - id: zip
+      action: fill
+      selector: "input[name=\"zip\"]"
+      value: "{{postal_code}}"
+    - id: email
+      action: fill
+      selector: "input[name=\"email\"]"
+      value: "{{email}}"
+    - id: requestor-type
+      action: select
+      selector: "select[name=\"requestorType\"]"
+      value: "Authorized Agent"
+    - id: captcha
+      action: handoff
+      reason: "captcha"
+      instructions: >-
+        This form ends with an "I am not a robot" challenge. Open the link,
+        check the values below are filled in, choose "Authorized Agent" or
+        "Power of Attorney" as the requestor type, complete the challenge and
+        submit. A phone alternative is listed on this case if you prefer to
+        call.
+      url: "https://i-360.com/privacy-request"
+
+verification:
+  method: none
+  window_hours: 72
+
+relist:
+  interval_days: 90
+
+rate_limit:
+  max_concurrent: 1
+  min_interval_ms: 4000
+  daily_cap: 200
+
+references:
+  - https://joindeleteme.com/opt-out-guides/i-360-opt-out-guide/
+
+notes: |
+  DeleteMe publish a free guide to this one. The form offers a requestor-type
+  field with "Authorized Agent" and "Power of Attorney" among the options, which
+  makes an agent-submitted request a first-class path rather than an argument.
+  A phone alternative is published as well; it is recorded below so a member who
+  prefers to call has the number.

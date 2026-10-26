@@ -10,6 +10,7 @@ export default defineConfig({
       '@deletewe/schema': pkg('schema'),
       '@deletewe/catalog': pkg('catalog'),
       '@deletewe/engine': pkg('engine'),
+      '@deletewe/browser': pkg('browser'),
       '@deletewe/adapters-node': pkg('adapters-node'),
       '@deletewe/adapters-cf': pkg('adapters-cf'),
       '@deletewe/web': pkg('web'),

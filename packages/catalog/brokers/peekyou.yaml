@@ -1,0 +1,89 @@
+# PeekYou
+#
+# UNVERIFIED. Authored from public opt-out documentation; never executed
+# against the live site. Treat every selector as theoretical until someone
+# runs it and sets `verified_at`. See docs/broker-catalog.md section 6.
+
+id: peekyou
+name: "PeekYou"
+homepage: https://www.peekyou.com
+version: 1.0.0
+category: people_search
+jurisdictions:
+  - US
+hosts:
+  - www.peekyou.com
+  - peekyou.com
+
+automation:
+  level: assisted
+  reason: "CAPTCHA on the opt-out form"
+
+search:
+  method: url_template
+  url_template: "https://www.peekyou.com/{name_slug}"
+  result_selector: ".person-card"
+  fields:
+    name: { selector: ".person-name", attr: text }
+    locality: { selector: ".person-location", attr: text }
+    region: { selector: ".person-region", attr: text }
+    age: { selector: ".person-age", attr: text }
+    url: { selector: "a.person-link", attr: href }
+
+match:
+  fields:
+    name: 0.4
+    locality: 0.2
+    region: 0.15
+    age: 0.25
+  thresholds:
+    review: 0.5
+    auto_confirm: 0.92
+  require_manual_confirmation: false
+
+opt_out:
+  method: form
+  url: https://www.peekyou.com/about/contact/optout/
+  required_fields:
+    - listing_url
+    - email
+  steps:
+    - id: open
+      action: goto
+      url: "https://www.peekyou.com/about/contact/optout/"
+      expect: { selector_present: "form" }
+    - id: listing-url
+      action: fill
+      selector: "input[name=\"url\"]"
+      value: "{{listing_url}}"
+    - id: email
+      action: fill
+      selector: "input[name=\"email\"]"
+      value: "{{email}}"
+    - id: captcha
+      action: handoff
+      reason: "captcha"
+      instructions: >-
+        Open the link below. The listing URL and email address are already
+        filled in for you — paste them if the page is blank, complete the "I am
+        not a robot" challenge, and press submit. We do not solve these for you,
+        by design.
+      url: "https://www.peekyou.com/about/contact/optout/"
+
+verification:
+  method: email_link
+  expected_senders:
+    - "@peekyou.com"
+  link_pattern: "https://www\\.peekyou\\.com/[A-Za-z0-9_/-]*(?:confirm|optout|removal|opt-out)[A-Za-z0-9_/-]*"
+  window_hours: 24
+
+relist:
+  interval_days: 90
+
+rate_limit:
+  max_concurrent: 1
+  min_interval_ms: 4000
+  daily_cap: 200
+
+references:
+  - https://www.peekyou.com/about/contact/optout/

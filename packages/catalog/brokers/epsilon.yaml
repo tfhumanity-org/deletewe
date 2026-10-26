@@ -1,0 +1,84 @@
+# Epsilon Data Management
+#
+# UNVERIFIED. Authored from public opt-out documentation; never executed
+# against the live site. Treat every selector as theoretical until someone
+# runs it and sets `verified_at`. See docs/broker-catalog.md section 6.
+
+id: epsilon
+name: "Epsilon Data Management"
+homepage: https://www.epsilon.com
+version: 1.0.0
+category: marketing
+jurisdictions:
+  - US
+hosts:
+  - www.epsilon.com
+  - epsilon.com
+
+automation:
+  level: automated
+
+search:
+  method: none
+
+match:
+  fields:
+    name: 1.0
+  thresholds:
+    review: 0.5
+    auto_confirm: 0.92
+  require_manual_confirmation: true
+
+opt_out:
+  method: email
+  required_fields:
+    - full_name
+    - address
+    - city
+    - region
+    - postal_code
+    - email
+    - jurisdiction
+  email:
+    to: privacy@epsilon.com
+    subject_template: "Authorized agent deletion and opt-out request for {{full_name}}"
+    body_template: |
+      To whom it may concern,
+
+      I am writing as the authorized agent of {{full_name}}, acting on their explicit
+      written instruction, to request the deletion of their personal information and
+      to opt them out of its sale or sharing.
+
+        Name:     {{full_name}}
+        Address:  {{address}}, {{city}}, {{region}} {{postal_code}}
+        Email:    {{email}}
+
+      This request is made under the California Consumer Privacy Act as amended by
+      the California Privacy Rights Act, and under any other privacy law applicable
+      to this individual in {{jurisdiction}}.
+
+      Please confirm in writing once the information has been deleted and suppressed
+      from future collection. A signed authorization is available on request.
+
+      Sent on behalf of the above individual by deletewe, acting as authorized agent.
+
+verification:
+  method: none
+  window_hours: 72
+
+relist:
+  interval_days: 180
+
+rate_limit:
+  max_concurrent: 1
+  min_interval_ms: 4000
+  daily_cap: 200
+
+references:
+  - https://www.epsilon.com/us/privacy-policy
+
+notes: |
+  A marketing data broker rather than a people-search site: there is no public
+  index to scan, so we cannot tell a member whether they are listed. We send the
+  request and record the evidence; we never claim to have confirmed a removal we
+  could not observe.

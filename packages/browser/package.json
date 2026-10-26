@@ -1,0 +1,13 @@
+{
+  "name": "@deletewe/browser",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@deletewe/engine": "*",
+    "node-html-parser": "^7.0.1"
+  }
+}

@@ -1,0 +1,92 @@
+# Whitepages
+#
+# UNVERIFIED. Authored from public opt-out documentation; never executed
+# against the live site. Treat every selector as theoretical until someone
+# runs it and sets `verified_at`. See docs/broker-catalog.md section 6.
+
+id: whitepages
+name: "Whitepages"
+homepage: https://www.whitepages.com
+version: 1.0.0
+category: people_search
+jurisdictions:
+  - US
+hosts:
+  - www.whitepages.com
+  - whitepages.com
+
+automation:
+  level: assisted
+  reason: "Verification is a phone call or SMS code, which only the member can complete"
+
+search:
+  method: url_template
+  url_template: "https://www.whitepages.com/name/{name_slug}"
+  result_selector: ".results-list .result"
+  fields:
+    name: { selector: ".name", attr: text }
+    locality: { selector: ".location", attr: text }
+    region: { selector: ".region", attr: text }
+    age: { selector: ".age", attr: text }
+    url: { selector: "a", attr: href }
+
+match:
+  fields:
+    name: 0.4
+    locality: 0.2
+    region: 0.15
+    age: 0.25
+  thresholds:
+    review: 0.5
+    auto_confirm: 0.92
+  require_manual_confirmation: false
+
+opt_out:
+  method: form
+  url: https://www.whitepages.com/suppression-requests
+  required_fields:
+    - listing_url
+    - phone
+  steps:
+    - id: open
+      action: goto
+      url: "https://www.whitepages.com/suppression-requests"
+      expect: { selector_present: "form" }
+    - id: listing-url
+      action: fill
+      selector: "input[name=\"url\"]"
+      value: "{{listing_url}}"
+    - id: phone
+      action: fill
+      selector: "input[name=\"phone\"]"
+      value: "{{phone}}"
+    - id: verify
+      action: handoff
+      reason: "phone_call"
+      instructions: >-
+        Whitepages confirms removals by calling or texting the phone number on
+        the listing. Open the link, submit the form with the details below, then
+        answer the call or enter the code they send. Public guides report
+        processing takes 24-48 hours.
+      url: "https://www.whitepages.com/suppression-requests"
+
+verification:
+  method: phone_code
+  window_hours: 48
+
+relist:
+  interval_days: 90
+
+rate_limit:
+  max_concurrent: 1
+  min_interval_ms: 4000
+  daily_cap: 200
+
+references:
+  - https://www.whitepages.com/suppression-requests
+  - https://omlumi.com/guides/how-to-remove-yourself-from-people-search-sites
+
+notes: |
+  Whitepages verifies by phone rather than email, so the final step can only be
+  completed by whoever holds the handset. That is a hard automation boundary, not
+  a gap we intend to close.

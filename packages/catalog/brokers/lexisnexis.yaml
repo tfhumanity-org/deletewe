@@ -1,0 +1,89 @@
+# LexisNexis Risk Solutions
+#
+# UNVERIFIED. Authored from public opt-out documentation; never executed
+# against the live site. Treat every selector as theoretical until someone
+# runs it and sets `verified_at`. See docs/broker-catalog.md section 6.
+
+id: lexisnexis
+name: "LexisNexis Risk Solutions"
+homepage: https://risk.lexisnexis.com
+version: 1.0.0
+category: risk_fraud
+jurisdictions:
+  - US
+hosts:
+  - risk.lexisnexis.com
+  - lexisnexis.com
+
+automation:
+  level: assisted
+  reason: "Opt-out is accepted by post or fax; no postal provider is configured by default"
+
+search:
+  method: none
+
+match:
+  fields:
+    name: 1.0
+  thresholds:
+    review: 0.5
+    auto_confirm: 0.92
+  require_manual_confirmation: true
+
+opt_out:
+  method: letter
+  required_fields:
+    - full_name
+    - address
+    - city
+    - region
+    - postal_code
+    - dob
+    - email
+  letter:
+    recipient: "LexisNexis Risk Solutions, Consumer Center"
+    address_lines:
+      - "LexisNexis Risk Solutions"
+      - "Consumer Center"
+      - "P.O. Box 105108"
+      - "Atlanta, GA 30348-5108"
+    body_template: |
+      To whom it may concern,
+
+      I act as the authorized agent of the individual named below and request, on
+      their behalf, that you delete their personal information from your databases
+      and suppress it from future collection and disclosure.
+
+        Name:            {{full_name}}
+        Current address: {{address}}, {{city}}, {{region}} {{postal_code}}
+        Date of birth:   {{dob}}
+        Email:           {{email}}
+
+      This request is made under the California Consumer Privacy Act as amended, and
+      under any other privacy law applicable to this individual.
+
+      Please confirm completion in writing to the email address above. A signed
+      authorization naming me as this individual's agent is available on request.
+
+      Sent on behalf of the above individual by deletewe, acting as authorized agent.
+
+verification:
+  method: none
+  window_hours: 72
+
+relist:
+  interval_days: 365
+
+rate_limit:
+  max_concurrent: 1
+  min_interval_ms: 4000
+  daily_cap: 200
+
+references:
+  - https://risk.lexisnexis.com/consumer-disclosure
+
+notes: |
+  A postal opt-out. The engine renders a signed letter as a PDF; dispatching it
+  needs a postal or fax vendor, and that vendor would see the member name and
+  address in plaintext, so choosing one is a human decision. Until then the
+  member gets the letter to print and post, which still works.

@@ -1,0 +1,100 @@
+# Acxiom
+#
+# UNVERIFIED. Authored from public opt-out documentation; never executed
+# against the live site. Treat every selector as theoretical until someone
+# runs it and sets `verified_at`. See docs/broker-catalog.md section 6.
+
+id: acxiom
+name: "Acxiom"
+homepage: https://www.acxiom.com
+version: 1.0.0
+category: identity_graph
+jurisdictions:
+  - US
+hosts:
+  - www.acxiom.com
+  - acxiom.com
+  - isapps.acxiom.com
+
+automation:
+  level: assisted
+  reason: "Identity verification step on the preference portal"
+
+search:
+  method: none
+
+match:
+  fields:
+    name: 1.0
+  thresholds:
+    review: 0.5
+    auto_confirm: 0.92
+  require_manual_confirmation: true
+
+opt_out:
+  method: form
+  url: https://isapps.acxiom.com/optout/optout.aspx
+  required_fields:
+    - full_name
+    - email
+    - address
+    - city
+    - region
+    - postal_code
+  steps:
+    - id: open
+      action: goto
+      url: "https://isapps.acxiom.com/optout/optout.aspx"
+      expect: { selector_present: "form" }
+    - id: name
+      action: fill
+      selector: "input[name=\"fullName\"]"
+      value: "{{full_name}}"
+    - id: email
+      action: fill
+      selector: "input[name=\"email\"]"
+      value: "{{email}}"
+    - id: address
+      action: fill
+      selector: "input[name=\"address\"]"
+      value: "{{address}}"
+    - id: city
+      action: fill
+      selector: "input[name=\"city\"]"
+      value: "{{city}}"
+    - id: region
+      action: fill
+      selector: "input[name=\"state\"]"
+      value: "{{region}}"
+    - id: postal
+      action: fill
+      selector: "input[name=\"zip\"]"
+      value: "{{postal_code}}"
+    - id: verify
+      action: handoff
+      reason: "id_upload"
+      instructions: >-
+        Acxiom verifies identity before acting. Open the link, submit the
+        details below, and complete their verification step directly with them.
+        We never hold a copy of your ID.
+      url: "https://isapps.acxiom.com/optout/optout.aspx"
+
+verification:
+  method: none
+  window_hours: 72
+
+relist:
+  interval_days: 365
+
+rate_limit:
+  max_concurrent: 1
+  min_interval_ms: 4000
+  daily_cap: 200
+
+references:
+  - https://www.acxiom.com/privacy/
+
+notes: |
+  A marketing identity-graph broker with no public index, so there is nothing to
+  scan. ID verification goes directly to the broker: we do not store identity
+  documents under any circumstances. See docs/threat-model.md.

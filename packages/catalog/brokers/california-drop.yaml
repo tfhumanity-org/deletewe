@@ -1,0 +1,66 @@
+# California DROP (Delete Request and Opt-out Platform)
+#
+# UNVERIFIED. Authored from public opt-out documentation; never executed
+# against the live site. Treat every selector as theoretical until someone
+# runs it and sets `verified_at`. See docs/broker-catalog.md section 6.
+
+id: california-drop
+name: "California DROP (Delete Request and Opt-out Platform)"
+homepage: https://cppa.ca.gov
+version: 1.0.0
+category: other
+jurisdictions:
+  - US-CA
+hosts:
+  - cppa.ca.gov
+  - www.cppa.ca.gov
+
+automation:
+  level: manual
+  reason: "Submitting to a state platform needs operator registration, credentials and legal review"
+
+search:
+  method: none
+
+match:
+  fields:
+    name: 1.0
+  thresholds:
+    review: 0.5
+    auto_confirm: 0.92
+  require_manual_confirmation: true
+
+opt_out:
+  method: drop
+  required_fields:
+    - full_name
+    - email
+    - jurisdiction
+  instructions: |
+    California runs a single deletion request that reaches every registered
+    data broker at once. Since 1 August 2026 brokers must check it at least
+    every 45 days and act within 45 days. For a California resident this is
+    both free and stronger than asking brokers one at a time, so do it even
+    if you do nothing else. This instance is not connected to the platform;
+    submit it yourself at the link below.
+
+verification:
+  method: none
+  window_hours: 72
+
+relist:
+  interval_days: 180
+
+rate_limit:
+  max_concurrent: 1
+  min_interval_ms: 4000
+  daily_cap: 200
+
+references:
+  - https://cppa.ca.gov/data_broker_registry/
+  - https://www.recordinglaw.com/news/california-delete-act-drop-deletion-mandate/
+
+notes: |
+  Not a data broker: a statutory channel modelled as a catalogue entry so the
+  integration point is concrete rather than hypothetical. See
+  docs/research/05-legal-basis.md and docs/architecture.md section 11.

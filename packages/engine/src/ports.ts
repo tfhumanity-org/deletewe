@@ -62,6 +62,12 @@ export interface ElementSnapshot {
   readonly text: string;
   readonly html: string;
   readonly attrs: Readonly<Record<string, string>>;
+  /**
+   * Scoped lookup within this element. Extraction rules name a selector
+   * relative to the result container, and only the driver holds a DOM, so the
+   * snapshot carries the lookup rather than the raw document.
+   */
+  find(selector: string): ElementSnapshot | null;
 }
 
 export interface PageHandle {

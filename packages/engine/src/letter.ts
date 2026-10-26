@@ -29,7 +29,6 @@ function escapePdfText(text: string): string {
 
 /** Latin-1 is what the standard PDF fonts encode; anything else is dropped. */
 function toLatin1(text: string): string {
-  // eslint-disable-next-line no-control-regex
   return text.normalize('NFKD').replace(/[^\x20-\x7e\xa0-\xff\n]/g, '');
 }
 

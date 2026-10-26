@@ -241,12 +241,16 @@ function extractSnapshot(definition: BrokerDefinition, element: ElementSnapshot)
  * within the result; `self` reads the result element itself.
  */
 export function applyExtractor(element: ElementSnapshot, extractor: Extractor): string | undefined {
+  const target =
+    extractor.selector === 'self' || extractor.selector === ':scope' ? element : element.find(extractor.selector);
+  if (!target) return undefined;
+
   const raw =
     extractor.attr === 'text'
-      ? element.text
+      ? target.text
       : extractor.attr === 'html'
-        ? element.html
-        : element.attrs[extractor.attr];
+        ? target.html
+        : target.attrs[extractor.attr];
   if (raw === undefined) return undefined;
 
   const trimmed = raw.replace(/\s+/g, ' ').trim();

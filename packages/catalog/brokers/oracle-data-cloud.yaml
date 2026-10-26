@@ -1,0 +1,87 @@
+# Oracle Data Cloud
+#
+# UNVERIFIED. Authored from public opt-out documentation; never executed
+# against the live site. Treat every selector as theoretical until someone
+# runs it and sets `verified_at`. See docs/broker-catalog.md section 6.
+
+id: oracle-data-cloud
+name: "Oracle Data Cloud"
+homepage: https://www.oracle.com
+version: 1.0.0
+category: identity_graph
+jurisdictions:
+  - US
+hosts:
+  - www.oracle.com
+  - oracle.com
+
+automation:
+  level: unsupported
+  reason: "No working opt-out procedure is known to this catalogue"
+
+search:
+  method: none
+
+match:
+  fields:
+    name: 1.0
+  thresholds:
+    review: 0.5
+    auto_confirm: 0.92
+  require_manual_confirmation: true
+
+opt_out:
+  method: email
+  required_fields:
+    - full_name
+    - address
+    - city
+    - region
+    - postal_code
+    - email
+    - jurisdiction
+  email:
+    to: privacy_ww@oracle.com
+    subject_template: "Authorized agent deletion request for {{full_name}}"
+    body_template: |
+      To whom it may concern,
+
+      I am writing as the authorized agent of {{full_name}}, acting on their explicit
+      written instruction, to request the deletion of their personal information and
+      to opt them out of its sale or sharing.
+
+        Name:     {{full_name}}
+        Address:  {{address}}, {{city}}, {{region}} {{postal_code}}
+        Email:    {{email}}
+
+      This request is made under the California Consumer Privacy Act as amended by
+      the California Privacy Rights Act, and under any other privacy law applicable
+      to this individual in {{jurisdiction}}.
+
+      Please confirm in writing once the information has been deleted and suppressed
+      from future collection. A signed authorization is available on request.
+
+      Sent on behalf of the above individual by deletewe, acting as authorized agent.
+
+verification:
+  method: none
+  window_hours: 72
+
+relist:
+  interval_days: 365
+
+rate_limit:
+  max_concurrent: 1
+  min_interval_ms: 4000
+  daily_cap: 200
+
+enabled: false
+
+references:
+  - https://www.oracle.com/legal/privacy/
+
+notes: |
+  Shipped disabled and marked unsupported on purpose. This is what an honest
+  catalogue entry looks like when we know a broker exists but have no procedure
+  we trust. Counting entries like this one towards a coverage number is exactly
+  the practice docs/research/02-broker-coverage.md criticises.
