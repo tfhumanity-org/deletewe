@@ -50,3 +50,8 @@ crons = ["*/10 * * * *"]
 
 [observability]
 enabled = true
+
+# No rule is needed to bundle packages/catalog/brokers/*.yaml: the Worker
+# imports packages/catalog/src/generated.ts, a build-time projection of those
+# files, because node:fs is not available here. Regenerate it with
+# `npm run catalog:bundle` after changing any definition; CI fails on drift.

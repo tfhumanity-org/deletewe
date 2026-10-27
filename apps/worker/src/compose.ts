@@ -1,4 +1,4 @@
-import { FileCatalog, syncCatalog } from '@deletewe/catalog';
+import { BUNDLED_BROKERS, BundledCatalog, syncCatalog } from '@deletewe/catalog';
 import {
   createLogger,
   CryptoService,
@@ -25,7 +25,18 @@ import { FetchBrowserDriver } from '@deletewe/browser';
 import { HttpApiMailer } from '@deletewe/adapters-node';
 import type { WorkerEnv } from './env.ts';
 
+/**
+ * Built once per isolate, not per request.
+ *
+ * The file loader uses node:fs, which does not exist here, and re-parsing 29
+ * YAML definitions on every fetch, queue message and cron tick would be waste
+ * even where it does. `generated.ts` is the build-time projection of the same
+ * files — see packages/catalog/src/bin/bundle.ts.
+ */
+const catalog = new BundledCatalog(BUNDLED_BROKERS);
+
 let migrated = false;
+let catalogSynced = false;
 
 /**
  * The Cloudflare composition root. Same engine, same catalogue, same SQL —
@@ -52,8 +63,13 @@ export async function composeWorker(env: WorkerEnv): Promise<EngineContext> {
   });
 
   const store = new Store(db, crypto, systemClock);
-  const { catalog, result } = await FileCatalog.load();
-  await syncCatalog(store, result.brokers);
+
+  // Projecting the catalogue into the broker table is ~60 D1 round-trips, so
+  // it runs once per isolate rather than on every invocation.
+  if (!catalogSynced) {
+    await syncCatalog(store, BUNDLED_BROKERS);
+    catalogSynced = true;
+  }
 
   const ports: Ports = {
     db,

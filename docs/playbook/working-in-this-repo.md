@@ -14,7 +14,7 @@ npm ci                 # install, exactly as the lockfile says
 npm run build          # tsc -b across the project reference graph
 npm run clean          # when something is inexplicable
 
-npm run verify         # lint + typecheck + 184 tests — THE gate
+npm run verify         # lint + typecheck + 210 tests — THE gate
 npm run lint
 npm run lint:fix
 npm run typecheck
@@ -28,6 +28,7 @@ npm run cli -- help
 npm run catalog:validate   # schema + cross-field rules
 npm run catalog:report     # coverage breakdown by automation level
 npm run broker:new -- <id> # scaffold a definition + fixture directory
+npm run catalog:bundle     # regenerate the platform-free catalogue module
 npm run schema:emit        # regenerate the JSON Schema for editors
 ```
 

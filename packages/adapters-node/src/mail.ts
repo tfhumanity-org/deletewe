@@ -85,8 +85,12 @@ export class PlusAddressInbound implements InboundMail {
   }
 
   tokenFrom(address: string): string | undefined {
+    // A `To:` header normally carries a display name: `deletewe <optout+x@...>`.
+    // Match the addr-spec, not the whole header.
+    const normalised = address.trim().toLowerCase();
+    const bare = /<([^>]+)>/.exec(normalised)?.[1]?.trim() ?? normalised;
     const match = new RegExp(`^${escapeRegex(this.localPart)}\\+([a-z0-9]+)@${escapeRegex(this.domain)}$`, 'i').exec(
-      address.trim().toLowerCase(),
+      bare,
     );
     return match?.[1];
   }
@@ -112,7 +116,12 @@ export function parseEmail(raw: string, receivedAt: number): InboundMessage {
   for (const line of headerBlock.replace(/\n[ \t]+/g, ' ').split('\n')) {
     const colon = line.indexOf(':');
     if (colon === -1) continue;
-    headers.set(line.slice(0, colon).trim().toLowerCase(), line.slice(colon + 1).trim());
+    const name = line.slice(0, colon).trim().toLowerCase();
+    // First occurrence wins. Receiving infrastructure prepends its headers, so
+    // a sender who appends their own Authentication-Results must not be able
+    // to overwrite the platform's verdict. See docs/threat-model.md TB6.
+    if (headers.has(name)) continue;
+    headers.set(name, line.slice(colon + 1).trim());
   }
 
   const contentType = headers.get('content-type') ?? '';

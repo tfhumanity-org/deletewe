@@ -1,10 +1,9 @@
 import { serve } from '@hono/node-server';
 import { handleInboundMessage, tick } from '@deletewe/engine';
-import { readMaildrop } from '@deletewe/adapters-node';
+import { parseEmail } from '@deletewe/adapters-node';
 import { createApp } from '@deletewe/web';
 import { join } from 'node:path';
-import { mkdir, rename } from 'node:fs/promises';
-import { readdir } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename } from 'node:fs/promises';
 import { compose } from './compose.ts';
 
 const TICK_INTERVAL_MS = 60_000;
@@ -36,14 +35,21 @@ const processed = join(maildrop, 'processed');
 await mkdir(processed, { recursive: true });
 
 async function drainMaildrop(): Promise<void> {
-  const messages = await readMaildrop(maildrop);
-  if (messages.length === 0) return;
-  for (const message of messages) {
-    const result = await handleInboundMessage(ctx, message);
-    ctx.log.info('inbound_mail_handled', { outcome: result.kind });
-  }
-  for (const name of (await readdir(maildrop)).filter((n) => n.endsWith('.eml'))) {
-    await rename(join(maildrop, name), join(processed, name));
+  // Snapshot the filenames first and archive only those. Re-reading the
+  // directory afterwards would also sweep up anything that arrived while we
+  // were following confirmation links, losing it unprocessed.
+  const names = (await readdir(maildrop)).filter((n) => n.endsWith('.eml')).sort();
+  if (names.length === 0) return;
+
+  for (const name of names) {
+    const path = join(maildrop, name);
+    try {
+      const result = await handleInboundMessage(ctx, parseEmail(await readFile(path, 'utf8'), Date.now()));
+      ctx.log.info('inbound_mail_handled', { outcome: result.kind });
+    } catch {
+      ctx.log.error('inbound_mail_failed');
+    }
+    await rename(path, join(processed, name));
   }
 }
 

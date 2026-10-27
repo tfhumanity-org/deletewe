@@ -403,7 +403,9 @@ export function createApp(options: AppOptions): Hono {
     return c.redirect('/reports');
   });
 
-  app.get('/reports/:id.pdf', async (c) => {
+  // Hono reads `:id.pdf` as a parameter literally named "id.pdf", so the
+  // extension goes in the path rather than the segment.
+  app.get('/reports/:id/download.pdf', async (c) => {
     const session = await requireMember(c);
     if (session instanceof Response) return session;
 

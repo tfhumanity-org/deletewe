@@ -367,7 +367,16 @@ export class Store {
 
   async upsertBroker(row: Omit<BrokerRow, 'status'> & { status?: BrokerStatus }): Promise<void> {
     const now = this.clock.now();
-    const existing = await this.db.get<{ status: string }>('SELECT status FROM broker WHERE id = ?', [row.id]);
+    const existing = await this.db.get<{ status: string; definition_sha256: string }>(
+      'SELECT status, definition_sha256 FROM broker WHERE id = ?',
+      [row.id],
+    );
+
+    const nextStatus = (current: string | undefined, incomingSha: string): BrokerStatus => {
+      if (current === undefined) return 'healthy';
+      if (current === 'broken' && existing?.definition_sha256 !== incomingSha) return 'healthy';
+      return current as BrokerStatus;
+    };
     await this.db.run(
       `INSERT INTO broker (id, definition_version, definition_sha256, name, homepage, category,
          automation_level, opt_out_method, relist_interval_days, jurisdictions, status, enabled, verified_at, updated_at)
@@ -378,12 +387,15 @@ export class Store {
          name = excluded.name, homepage = excluded.homepage, category = excluded.category,
          automation_level = excluded.automation_level, opt_out_method = excluded.opt_out_method,
          relist_interval_days = excluded.relist_interval_days, jurisdictions = excluded.jurisdictions,
-         enabled = excluded.enabled, verified_at = excluded.verified_at, updated_at = excluded.updated_at`,
+         enabled = excluded.enabled, verified_at = excluded.verified_at, updated_at = excluded.updated_at,
+         status = excluded.status`,
       [
         row.id, row.definitionVersion, row.definitionSha256, row.name, row.homepage, row.category,
         row.automationLevel, row.optOutMethod, row.relistIntervalDays, JSON.stringify(row.jurisdictions),
-        // A definition change resets a broken broker to healthy: the fix is the point.
-        existing && existing.status !== 'broken' ? existing.status : 'healthy',
+        // A changed definition resets a broken broker to healthy — repairing it
+        // is the whole point of the change. Any other status is left alone, so
+        // an operator's manual `disabled` survives a redeploy.
+        nextStatus(existing?.status, row.definitionSha256),
         row.enabled ? 1 : 0, row.verifiedAt, now,
       ],
     );
@@ -1081,6 +1093,16 @@ export class Store {
 
   async deleteSession(id: string): Promise<void> {
     await this.db.run('DELETE FROM session WHERE id = ?', [id]);
+  }
+
+  /**
+   * Every visit to a login page creates a session row to carry its CSRF token,
+   * so unauthenticated traffic alone would grow the table without bound.
+   * Swept by the cron tick.
+   */
+  async deleteExpiredSessions(now: number): Promise<number> {
+    const { changes } = await this.db.run('DELETE FROM session WHERE expires_at < ?', [now]);
+    return changes;
   }
 
   async deleteSessionsFor(memberId: string): Promise<void> {

@@ -98,6 +98,16 @@ export async function runSubmit(ctx: EngineContext, params: SubmitParams): Promi
 }
 
 /**
+ * Per-broker politeness, applied by every path that actually sends something.
+ * A definition declaring `min_interval_ms` and `daily_cap` is making a promise
+ * about our behaviour; enforcing it only for form submissions made that
+ * promise true for one method out of six.
+ */
+async function withinRateLimit(ctx: EngineContext, brokerId: string, definition: BrokerDefinition): Promise<boolean> {
+  return ctx.store.tryConsumeRate(brokerId, definition.rate_limit.min_interval_ms, definition.rate_limit.daily_cap);
+}
+
+/**
  * The consent gate. Nothing reaches a broker without a live mandate, live
  * consent, and a confirmed match. See docs/product-spec.md principle 2.
  */
@@ -135,12 +145,9 @@ async function submitForm(
   const definitionSha = evidence.definitionSha256 ?? '';
   const log = ctx.log.child({ brokerId: caseFile.brokerId, caseId, jobKind: 'submit' });
 
-  const allowed = await ctx.store.tryConsumeRate(
-    caseFile.brokerId,
-    definition.rate_limit.min_interval_ms,
-    definition.rate_limit.daily_cap,
-  );
-  if (!allowed) return { kind: 'blocked', reason: 'rate_limited' };
+  if (!(await withinRateLimit(ctx, caseFile.brokerId, definition))) {
+    return { kind: 'blocked', reason: 'rate_limited' };
+  }
 
   const transcript = new Transcript(() => ctx.ports.clock.now());
   const startUrl = definition.opt_out.url ?? definition.homepage;
@@ -282,6 +289,10 @@ async function submitEmail(
   const block = definition.opt_out.email;
   if (!block) throw new EngineError('invalid_input', 'email method without an email block');
 
+  if (!(await withinRateLimit(ctx, caseFile.brokerId, definition))) {
+    return { kind: 'blocked', reason: 'rate_limited' };
+  }
+
   const token = await allocateVerificationToken(ctx, params, caseFile, definition);
   const replyTo = ctx.ports.inbound.addressFor(token);
 
@@ -345,6 +356,10 @@ async function submitLetter(
     return { kind: 'handed_off', reason: 'no_postal_provider', taskId };
   }
 
+  if (!(await withinRateLimit(ctx, caseFile.brokerId, definition))) {
+    return { kind: 'blocked', reason: 'rate_limited' };
+  }
+
   const sent = await ctx.ports.letters.send({
     recipient: block.recipient,
     addressLines: block.address_lines,
@@ -381,6 +396,10 @@ async function submitDrop(
       deepLink: 'https://cppa.ca.gov/',
     });
     return { kind: 'handed_off', reason: 'channel_unavailable', taskId };
+  }
+
+  if (!(await withinRateLimit(ctx, caseFile.brokerId, definition))) {
+    return { kind: 'blocked', reason: 'rate_limited' };
   }
 
   const result = await ctx.ports.drop.submit({

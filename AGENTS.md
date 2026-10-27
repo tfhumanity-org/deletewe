@@ -33,7 +33,7 @@ and lint rules, not just by convention, so you will find out quickly.
 ```bash
 npm ci                 # install
 npm run build          # tsc -b across the project graph
-npm run verify         # lint + typecheck + 184 tests — THE gate
+npm run verify         # lint + typecheck + 210 tests — THE gate
 npm run test:watch
 
 npm run dev            # self-hosted app on :8787

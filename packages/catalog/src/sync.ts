@@ -1,11 +1,11 @@
 import type { Store } from '@deletewe/engine';
-import type { LoadedBroker } from './load.ts';
+import type { BundledBroker } from './bundle.ts';
 
 /**
  * Projects the catalogue files into the `broker` table for joins and stats.
  * The files remain the source of truth; this runs on boot.
  */
-export async function syncCatalog(store: Store, brokers: readonly LoadedBroker[]): Promise<number> {
+export async function syncCatalog(store: Store, brokers: readonly BundledBroker[]): Promise<number> {
   for (const { definition, sha256 } of brokers) {
     await store.upsertBroker({
       id: definition.id,

@@ -62,6 +62,7 @@ directory. Then:
 
    ```bash
    npm run catalog:validate
+   npm run catalog:bundle   # the Cloudflare build imports the generated module
    npm run verify
    ```
 

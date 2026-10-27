@@ -102,3 +102,38 @@ describe('the shipped catalogue', () => {
     for (const hash of hashes) expect(hash).toMatch(/^[0-9a-f]{64}$/);
   });
 });
+
+describe('the generated bundle', () => {
+  it('is in step with the YAML files', async () => {
+    const { buildBundleSource } = await import('./bundle.ts');
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+
+    const committed = readFileSync(join(import.meta.dirname, 'generated.ts'), 'utf8');
+
+    // A stale bundle would mean the Cloudflare build silently shipping
+    // yesterday's broker procedures. Run `npm run catalog:bundle`.
+    expect(buildBundleSource(loaded.brokers)).toBe(committed);
+  });
+
+  it('exposes the same brokers as the file loader', async () => {
+    const { BUNDLED_BROKERS, BundledCatalog } = await import('./index.ts');
+    const bundled = new BundledCatalog(BUNDLED_BROKERS);
+
+    expect(bundled.size).toBe(loaded.brokers.length);
+    for (const { definition, sha256 } of loaded.brokers) {
+      expect(bundled.get(definition.id)?.id).toBe(definition.id);
+      expect(bundled.sha256(definition.id)).toBe(sha256);
+    }
+  });
+
+  // The Worker imports this module, so it must not reach for node:fs.
+  it('keeps the bundle module free of platform imports', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    for (const file of ['bundle.ts', 'generated.ts']) {
+      const source = readFileSync(join(import.meta.dirname, file), 'utf8');
+      expect(source).not.toMatch(/from '(node:|fs|path)/);
+    }
+  });
+});

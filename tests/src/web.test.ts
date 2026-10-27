@@ -191,6 +191,32 @@ describe('a signed-in member', () => {
     expect(await (await client.get('/profile')).text()).toContain('Augusta King');
   });
 
+  // This route silently 404'd for every report: Hono reads ':id.pdf' as a
+  // parameter named "id.pdf", so param('id') was always undefined.
+  it('serves a generated report as a PDF', async () => {
+    const client = await signIn();
+    const csrf = await csrfFrom(await client.get('/reports'));
+    await client.post('/reports', { csrf });
+
+    const listing = await (await client.get('/reports')).text();
+    const href = /href="(\/reports\/[^"]+)"/.exec(listing)?.[1];
+    expect(href).toBeDefined();
+
+    const pdf = await client.get(href!);
+    expect(pdf.status).toBe(200);
+    expect(pdf.headers.get('content-type')).toBe('application/pdf');
+    expect(Buffer.from(await pdf.arrayBuffer()).toString('latin1')).toContain('%PDF-1.4');
+  });
+
+  it('will not serve another member’s report', async () => {
+    const other = await enrolTestMember(h, { email: 'other@member.test' });
+    const { generateReport } = await import('@deletewe/engine');
+    const { reportId } = await generateReport(h.ctx, { memberId: other.member.id, dek: other.dek });
+
+    const response = await (await signIn()).get(`/reports/${reportId}/download.pdf`);
+    expect(response.status).toBe(404);
+  });
+
   it('exports everything as JSON', async () => {
     const bundle = (await (await (await signIn()).get('/account/export.json')).json()) as { format: string };
     expect(bundle.format).toBe('deletewe-export/1');

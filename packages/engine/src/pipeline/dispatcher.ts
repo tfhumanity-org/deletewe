@@ -10,6 +10,28 @@ import { generateReport } from '../reports.ts';
 const BASE_BACKOFF_MS = 60_000;
 const MAX_BACKOFF_MS = 6 * 60 * 60 * 1000;
 
+/**
+ * How long a claimed job may stay `running` before another delivery is allowed
+ * to take it over. Longer than any single job should take; short enough that a
+ * worker killed mid-run does not strand the case.
+ */
+const JOB_LEASE_MS = 60 * 60 * 1000;
+
+/**
+ * A re-check holds its case's timer for this long. If the re-check is skipped,
+ * fails, or the worker dies, the timer has still moved forward rather than
+ * being cleared, so `dueCases` finds the case again instead of losing it.
+ */
+const RECHECK_LEASE_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * The cron sweep is a safety net for queue messages that never arrived, not
+ * the primary dispatch path — the dispatcher enqueues its own retries. Only
+ * jobs whose run_after is older than this are re-enqueued, so a job already in
+ * flight is not delivered twice.
+ */
+const LOST_MESSAGE_MS = 15 * 60 * 1000;
+
 /** Exponential backoff with a cap. Jitter is the caller's concern. */
 export function backoffFor(attempt: number): number {
   return Math.min(MAX_BACKOFF_MS, BASE_BACKOFF_MS * 2 ** Math.max(0, attempt - 1));
@@ -42,6 +64,14 @@ export async function runJob(ctx: EngineContext, message: JobMessage): Promise<v
   }
   if (job.state === 'succeeded' || job.state === 'cancelled') return;
 
+  // Queues deliver at least once, and Cloudflare's do not deduplicate. Without
+  // this guard a redelivery would run a second submit against the same case
+  // and the broker would receive the opt-out twice.
+  if (job.state === 'running' && job.startedAt !== null && ctx.ports.clock.now() - job.startedAt < JOB_LEASE_MS) {
+    ctx.log.warn('job_already_running', { jobId: job.id, jobKind: job.kind });
+    return;
+  }
+
   const memberRow = await ctx.store.getMemberRow(job.memberId);
   if (!memberRow) {
     await ctx.store.finishJob(job.id, 'cancelled', 'not_found', 'member no longer exists');
@@ -62,7 +92,11 @@ export async function runJob(ctx: EngineContext, message: JobMessage): Promise<v
     log.debug('job_succeeded');
   } catch (error) {
     const code = codeOf(error);
-    const detail = redact(error instanceof Error ? error.message : String(error));
+    // Scrub the member's own values, not just generic PII shapes. A broker
+    // page echoing "No record found for <name>, <street>" lands in
+    // job.error_detail, which operators read — and a name is not an email,
+    // a phone number or a date, so the shape rules alone would miss it.
+    const detail = redact(error instanceof Error ? error.message : String(error), await profileSecrets(ctx, job.memberId, dek));
 
     if (TERMINAL_CODES.has(code) || job.attempt + 1 >= job.maxAttempts) {
       await ctx.store.finishJob(job.id, 'failed', code, detail);
@@ -74,6 +108,27 @@ export async function runJob(ctx: EngineContext, message: JobMessage): Promise<v
     await ctx.store.rescheduleJob(job.id, runAfter, code, detail);
     await ctx.ports.queue.enqueue(message, backoffFor(job.attempt + 1));
     log.warn('job_retrying', { errorCode: code });
+  }
+}
+
+/**
+ * The member's own field values, for scrubbing free text before it is stored.
+ * Returns nothing rather than throwing: redaction must never be the reason a
+ * job fails.
+ */
+async function profileSecrets(ctx: EngineContext, memberId: string, dek: Uint8Array): Promise<string[]> {
+  try {
+    const profile = await ctx.store.loadProfile(memberId, dek);
+    return [
+      ...profile.names.flatMap((n) => [n.first, n.middle, n.last, [n.first, n.middle, n.last].filter(Boolean).join(' ')]),
+      ...profile.aliases.flatMap((n) => [n.first, n.last]),
+      ...profile.addresses.flatMap(({ address }) => [address.line1, address.city, address.postalCode]),
+      ...profile.phones,
+      ...profile.emails,
+      ...(profile.dob ? [profile.dob] : []),
+    ].filter((v): v is string => typeof v === 'string' && v.length > 0);
+  } catch {
+    return [];
   }
 }
 
@@ -124,16 +179,24 @@ export async function tick(ctx: EngineContext, limit = 50): Promise<{ jobs: numb
       kind: 'recheck',
       idempotencyKey: `recheck:${caseFile.id}:${Math.floor((caseFile.nextCheckAt ?? now) / 60_000)}`,
     });
-    // Clear the timer so a slow run is not re-queued on every tick.
-    await ctx.store.updateCase(caseFile.memberId, caseFile.id, { nextCheckAt: null });
+    // Push the timer forward rather than clearing it. Clearing it meant that a
+    // re-check which was skipped, failed, or died took the case out of
+    // `dueCases` permanently, and the removal-verification loop this product
+    // exists for stopped for that broker with nothing to show it had.
+    await ctx.store.updateCase(caseFile.memberId, caseFile.id, { nextCheckAt: now + RECHECK_LEASE_MS });
     if (created) {
       await ctx.ports.queue.enqueue({ jobId: id, kind: 'recheck', memberId: caseFile.memberId, caseId: caseFile.id });
       rechecks++;
     }
   }
 
-  const pending = await ctx.store.pendingJobs(now, limit);
+  // Safety net only: anything whose run_after is this far in the past was
+  // enqueued once already and evidently never delivered.
+  const pending = (await ctx.store.pendingJobs(now - LOST_MESSAGE_MS, limit)).filter(
+    (job) => job.state === 'pending',
+  );
   for (const job of pending) {
+    ctx.log.warn('job_rescued', { jobId: job.id, jobKind: job.kind, attempt: job.attempt });
     await ctx.ports.queue.enqueue({
       jobId: job.id,
       kind: job.kind,
@@ -142,8 +205,10 @@ export async function tick(ctx: EngineContext, limit = 50): Promise<{ jobs: numb
     });
   }
 
-  if (rechecks > 0 || pending.length > 0) {
-    ctx.log.info('tick', { rechecks, jobs: pending.length });
+  const sweptSessions = await ctx.store.deleteExpiredSessions(now);
+
+  if (rechecks > 0 || pending.length > 0 || sweptSessions > 0) {
+    ctx.log.info('tick', { rechecks, jobs: pending.length, sessionsSwept: sweptSessions });
   }
   return { jobs: pending.length, rechecks };
 }

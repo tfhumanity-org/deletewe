@@ -64,6 +64,13 @@ jobs:
       - name: Print the coverage breakdown
         run: node packages/catalog/dist/bin/report.js
 
+      - name: Check the generated bundle is in step with the YAML
+        # The Cloudflare build imports the generated module, so a stale bundle
+        # would silently ship yesterday's broker procedures.
+        run: |
+          node packages/catalog/dist/bin/bundle.js
+          git diff --exit-code -- packages/catalog/src/generated.ts
+
   docker:
     name: self-host image
     runs-on: ubuntu-latest

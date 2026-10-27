@@ -686,7 +686,13 @@ export const ReportsPage: FC<{
                   {date(report.periodStart)} – {date(report.periodEnd)}
                 </td>
                 <td class="muted">{date(report.generatedAt)}</td>
-                <td>{report.blobKey ? <a href={`/reports/${report.id}.pdf`}>PDF</a> : null}</td>
+                <td>
+                  {report.blobKey ? (
+                    <a href={`/reports/${report.id}/download.pdf`}>PDF</a>
+                  ) : (
+                    <span class="muted">file unavailable</span>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

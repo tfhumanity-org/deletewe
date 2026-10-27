@@ -202,10 +202,13 @@ and the admin console will show "never", which is correct and honest.
 
 ```bash
 npm run catalog:validate
+npm run catalog:bundle   # regenerates the module the Cloudflare build imports
 npm run verify
 ```
 
-Both must pass. Then open a pull request describing what you observed on the
+All three must pass. CI fails if the generated bundle has drifted from the
+YAML, because a stale bundle would mean the hosted build silently running
+yesterday's procedures. Then open a pull request describing what you observed on the
 live site, and whether you verified it.
 
 ## Repairing a broken definition

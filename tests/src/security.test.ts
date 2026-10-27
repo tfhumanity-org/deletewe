@@ -52,13 +52,62 @@ describe('supply-chain containment', () => {
     expect(await page.text()).toContain('ok');
   });
 
-  it('blocks a redirect that lands off the allowlist', async () => {
-    const driver = new FetchBrowserDriver(
-      async () => Object.defineProperty(new Response('<html></html>'), 'url', { value: 'https://attacker.example/x' }),
-    );
+  // Redirects are followed by hand so each hop is checked before it is
+  // requested. Following them automatically would mean the internal host had
+  // already been contacted by the time we noticed.
+  it('refuses a redirect to an off-allowlist host without requesting it', async () => {
+    const requested: string[] = [];
+    const driver = new FetchBrowserDriver(async (input) => {
+      requested.push(String(input));
+      return new Response(null, { status: 302, headers: { location: 'https://169.254.169.254/latest/meta-data/' } });
+    });
+
     await expect(
       driver.open('https://broker.test/optout', { allowedHosts: ['broker.test'], userAgent: 'test', timeoutMs: 1000 }),
     ).rejects.toThrow(/allowlist/);
+
+    expect(requested).toEqual(['https://broker.test/optout']);
+  });
+
+  // Same hostname, so a host check alone would wave this through — and the
+  // submission carries the member's name, email and listing URL.
+  it('refuses a redirect that downgrades to plain http', async () => {
+    const driver = new FetchBrowserDriver(
+      async () => new Response(null, { status: 302, headers: { location: 'http://broker.test/optout' } }),
+    );
+
+    await expect(
+      driver.open('https://broker.test/optout', { allowedHosts: ['broker.test'], userAgent: 'test', timeoutMs: 1000 }),
+    ).rejects.toThrow(/non-https/);
+  });
+
+  it('follows a redirect that stays on the allowlist', async () => {
+    let hop = 0;
+    const driver = new FetchBrowserDriver(async () => {
+      hop++;
+      return hop === 1
+        ? new Response(null, { status: 302, headers: { location: 'https://privacy.broker.test/optout' } })
+        : new Response('<html><body>arrived</body></html>');
+    });
+
+    const page = await driver.open('https://broker.test/optout', {
+      allowedHosts: ['broker.test'],
+      userAgent: 'test',
+      timeoutMs: 1000,
+    });
+
+    expect(await page.text()).toContain('arrived');
+    expect(page.url()).toBe('https://privacy.broker.test/optout');
+  });
+
+  it('gives up rather than following a redirect loop', async () => {
+    const driver = new FetchBrowserDriver(
+      async () => new Response(null, { status: 302, headers: { location: 'https://broker.test/loop' } }),
+    );
+
+    await expect(
+      driver.open('https://broker.test/loop', { allowedHosts: ['broker.test'], userAgent: 'test', timeoutMs: 1000 }),
+    ).rejects.toThrow(/too many redirects/);
   });
 });
 

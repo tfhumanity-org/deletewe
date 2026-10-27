@@ -74,7 +74,7 @@ build step, which is why self-hosting has no compile dependencies).
 
 ```bash
 npm ci
-npm run verify        # lint, typecheck, 184 tests — all must pass
+npm run verify        # lint, typecheck, 210 tests — all must pass
 ```
 
 Then start the app. **`npm run dev` runs in the foreground**, so give it its own

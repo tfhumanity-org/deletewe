@@ -1,4 +1,5 @@
 import type { EngineContext } from './context.ts';
+import { codeOf } from './errors.ts';
 import { renderPdf, wrapText } from './letter.ts';
 import type { CaseOutcome, CaseState } from './types.ts';
 
@@ -88,12 +89,20 @@ export async function generateReport(
 
   const pdf = renderReportPdf(summary);
   const blobKey = `reports/${params.memberId}/${periodEnd}.pdf`;
-  // Reports are write-once like evidence, so a conflict here means a report
-  // for this period already exists and the original stands. Either way the
-  // key is the one to record.
-  await ctx.ports.blobs
-    .put(blobKey, await ctx.store.encryptBlob(params.dek, params.memberId, pdf), 'application/pdf')
-    .catch(() => undefined);
+
+  // Reports are write-once like evidence. A conflict means a report for this
+  // period already exists and the original stands — that is fine. Anything
+  // else is a real storage failure, and recording a blobKey for a file that
+  // was never written would render a download link that always 404s.
+  let storedKey: string | null = blobKey;
+  try {
+    await ctx.ports.blobs.put(blobKey, await ctx.store.encryptBlob(params.dek, params.memberId, pdf), 'application/pdf');
+  } catch (error) {
+    if (codeOf(error) !== 'storage_conflict') {
+      storedKey = null;
+      ctx.log.error('report_blob_write_failed', { errorCode: codeOf(error) });
+    }
+  }
 
   const reportId = await ctx.store.createReport({
     memberId: params.memberId,
@@ -101,7 +110,7 @@ export async function generateReport(
     periodStart,
     periodEnd,
     summary,
-    blobKey,
+    blobKey: storedKey,
   });
 
   ctx.log.info('report_generated', {
@@ -110,7 +119,7 @@ export async function generateReport(
     awaitingYou: summary.totals.awaitingYou,
   });
 
-  return { reportId, summary, blobKey };
+  return { reportId, summary, blobKey: storedKey };
 }
 
 const STATE_LABELS: Readonly<Record<CaseState, string>> = {

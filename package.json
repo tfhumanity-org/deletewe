@@ -29,7 +29,8 @@
     "dev": "npm run build --silent && node apps/selfhost/dist/main.js",
     "cli": "npm run build --silent && node packages/cli/dist/bin.js",
     "mock-broker": "npm run build --silent && node apps/mock-broker/dist/main.js",
-    "migrate": "npm run build --silent && node packages/cli/dist/bin.js db migrate"
+    "migrate": "npm run build --silent && node packages/cli/dist/bin.js db migrate",
+    "catalog:bundle": "npm run build --silent && node packages/catalog/dist/bin/bundle.js && npm run build --silent"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

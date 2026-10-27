@@ -77,10 +77,14 @@ export async function deleteAccount(
     }
   }
 
-  // Sweep anything the evidence table did not know about.
-  for (const key of await ctx.ports.blobs.list(`evidence/${params.memberId}/`)) {
-    await ctx.ports.blobs.delete(key).catch(() => undefined);
-    deleted++;
+  // Sweep anything the tables did not know about. A blob written just before
+  // its row failed to commit is exactly the orphan a member would never be
+  // able to point at, and we told them deletion is complete.
+  for (const prefix of [`evidence/${params.memberId}/`, `reports/${params.memberId}/`]) {
+    for (const key of await ctx.ports.blobs.list(prefix)) {
+      await ctx.ports.blobs.delete(key).catch(() => undefined);
+      deleted++;
+    }
   }
 
   ctx.log.info('account_deleted', { blobsDeleted: deleted });

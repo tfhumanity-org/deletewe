@@ -2,6 +2,12 @@ import type { HTMLElement } from 'node-html-parser';
 import { EngineError, type BrowserDriver, type ElementSnapshot, type NavigateOptions, type PageHandle } from '@deletewe/engine';
 import { describeForm, formFor, hostAllowed, parseDocument, queryAll, selectWithin, toSnapshot } from './dom.ts';
 
+const MAX_REDIRECTS = 5;
+
+function isRedirect(status: number): boolean {
+  return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
+}
+
 /**
  * A browser driver built on `fetch` and a pure-JS DOM.
  *
@@ -129,13 +135,59 @@ class FetchPage implements PageHandle {
   async screenshot(): Promise<undefined> { return undefined; }
   async close(): Promise<void> { /* nothing to release */ }
 
+  /**
+   * Follows redirects by hand, checking every hop.
+   *
+   * `redirect: 'follow'` would let the runtime make each intermediate request
+   * before we ever saw the URL, so a broker redirecting to an internal address
+   * would already have been contacted by the time the final host check ran —
+   * detection rather than prevention. Each hop is also re-checked for https,
+   * because a redirect to plain http keeps the same hostname and would
+   * otherwise downgrade a submission carrying the member's details.
+   */
   private async request(url: string, init: RequestInit): Promise<Response> {
+    let current = url;
+
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+      this.assertReachable(current);
+      const response = await this.fetchOnce(current, hop === 0 ? init : { method: 'GET' });
+
+      const location = response.headers.get('location');
+      if (!isRedirect(response.status) || !location) {
+        Object.defineProperty(response, 'url', { value: response.url || current, configurable: true });
+        return response;
+      }
+
+      let next: string;
+      try {
+        next = new URL(location, current).toString();
+      } catch {
+        throw new EngineError('unexpected_page', 'broker sent an unparseable redirect');
+      }
+      // A 303, or a 301/302 after POST, continues as GET per the spec.
+      current = next;
+    }
+
+    throw new EngineError('unexpected_page', 'too many redirects');
+  }
+
+  /** https, and on a host the definition declared. Checked per hop. */
+  private assertReachable(url: string): void {
+    if (!url.startsWith('https://')) {
+      throw new EngineError('host_not_allowlisted', 'refusing a non-https hop: it would send member data in the clear');
+    }
+    if (!hostAllowed(url, this.options.allowedHosts)) {
+      throw new EngineError('host_not_allowlisted', 'navigation blocked: host is not on the definition allowlist');
+    }
+  }
+
+  private async fetchOnce(url: string, init: RequestInit): Promise<Response> {
     const controller = new AbortController();
     const timer = setTimeout(() => { controller.abort(); }, this.options.timeoutMs);
     try {
       return await this.fetchImpl(url, {
         ...init,
-        redirect: 'follow',
+        redirect: 'manual',
         signal: controller.signal,
         headers: { 'user-agent': this.options.userAgent, accept: 'text/html,application/xhtml+xml', ...init.headers },
       });
