@@ -242,21 +242,53 @@ apps/
 docs/            Specs, research, ADRs, playbook
 ```
 
-## 11. DROP integration point
+## 11. California DROP
 
-California's DROP is the statutory channel; for eligible members it is
-preferred over per-broker scraping
-([research](research/05-legal-basis.md)). The integration point is:
+DROP is the statutory channel: one request reaches every registered data
+broker, and since 1 August 2026 brokers must retrieve it at least every 45
+days. For a California resident that is both free and stronger than anything
+we can do broker-by-broker, so the dashboard promotes it rather than burying
+it ([research](research/05-legal-basis.md)).
 
-- `SubmitMethod.drop` in the broker schema, settable per broker;
-- `DropChannel` port with `submit(request)` / `pollStatus(id)`;
-- `NullDropChannel` ships as the default implementation and records the request
-  as `blocked: channel_unavailable` with a guided task pointing the member at
-  the official portal.
+**Submission is a member action, by law rather than by our choice.** The
+regulations (Cal. Code Regs. tit. 11) are explicit:
 
-It is **stubbed**, deliberately: wiring a real submission to a state platform
-requires credentials, an accepted operator agreement, and legal review. The
-seam exists so that work is a single adapter.
+| Section | Effect on the design |
+| --- | --- |
+| § 7620(a) | "Consumers must submit their deletion request through the DROP", after the Agency verifies California residency via the California Identity Gateway or Login.gov. A government identity check no agent can pass for them. |
+| § 7621(a) | An authorized agent may "aid in" a deletion request — aid, not make. |
+| § 7621(b) | The agent's full name, email, and trade name (if a business) must be in the consumer's DROP account **before** submission. |
+| § 7621(c) | An agent may not cancel a request unless expressly directed by the consumer. |
+| § 7620(d) | No amendment or cancellation for the first 45 days. |
+| § 7616(c) | A data broker must not contact a consumer to verify a DROP request. |
+| §§ 7610–7613 | The DROP **API** is the data-broker side: an account with an EIN, an access fee, and retrieval of hashed deletion lists. A removal agent must not occupy that role. |
+
+So the integration is a **guided statutory channel with a tracked clock**:
+
+```
+ member marks eligible ──> GuidedDropChannel.submit()
+                             │
+                             └─> member_action_required
+                                   │  ordered steps + our agent disclosure
+                                   ▼
+                             guided task ──> member submits at the portal
+                                               │
+                                               ▼
+                                   recordDropSubmission()
+                                     stores reference (encrypted),
+                                     starts the statutory timeline,
+                                     schedules the 45-day re-check
+```
+
+`GuidedDropChannel` returns `member_action_required`, never a fabricated
+success. `ApiDropChannel` is the empty seam should CalPrivacy ever publish an
+agent submission interface; it is deliberately not implemented against a
+guessed endpoint.
+
+The timeline lives in `drop_request`, not in a case, because it has its own
+statutory lifecycle. `packages/engine/src/drop.ts` carries the citations next
+to the constants they justify, so a future change to the regulations has an
+obvious place to land.
 
 ## 12. What is deliberately absent
 

@@ -22,6 +22,12 @@ services:
       # Point this at a domain you control and route its mail into
       # /data/maildrop as .eml files.
       DELETEWE_INBOUND_DOMAIN: localhost
+      # Disclosed in a member's DROP account as their authorized agent
+      # (Cal. Code Regs. tit. 11 § 7621(b)). Leave unset and members submit in
+      # their own name, which works identically.
+      # DELETEWE_DROP_AGENT_NAME: Your Name
+      # DELETEWE_DROP_AGENT_EMAIL: you@example.com
+      # DELETEWE_DROP_AGENT_TRADE_NAME: Your Business
       # Outbound mail goes to /data/outbox as files until you set these.
       # DELETEWE_MAIL_ENDPOINT: https://api.your-provider.example/emails
       # DELETEWE_MAIL_API_KEY: ...

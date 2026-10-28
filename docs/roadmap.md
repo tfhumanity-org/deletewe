@@ -29,7 +29,7 @@ untested definitions.
 | Cloudflare Workers deployment config | ✅ (not deployed) |
 | Mock broker server + e2e tests | ✅ |
 | CI: lint, typecheck, test | ✅ |
-| DROP integration **point** | ✅ seam, ❌ implementation |
+| California DROP: guided submission, agent disclosure, statutory timeline | ✅ |
 | Postal/fax dispatch | ✅ PDF generation, ❌ provider |
 
 ### Explicitly not in MVP
@@ -44,10 +44,10 @@ Ordered by value per unit of risk.
 1. **Verify the seeded definitions against live sites.** The single highest
    -value piece of work in the project, and the one that needs explicit
    authorisation. Until it is done, coverage is theoretical.
-2. **California DROP channel.** Implement `DropChannel` against the real
-   platform. For a Californian this likely outperforms everything else we do
-   ([research](research/05-legal-basis.md)). Requires operator registration
-   and legal review.
+2. **DROP outcome measurement.** The channel and the clock are built; what is
+   missing is evidence of effect. Compare per-broker listings before and after
+   a member's DROP request lands, which would be the first public measurement
+   of whether the statutory channel actually works.
 3. **Postal/fax provider adapter.** A `LetterDispatch` port with a real vendor
    behind it. Needs a vendor threat model — they see name and address in
    plaintext.

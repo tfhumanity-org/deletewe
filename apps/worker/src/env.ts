@@ -19,4 +19,9 @@ export interface WorkerEnv {
   readonly MAIL_ENDPOINT?: string;
   readonly MAIL_API_KEY?: string;
   readonly LOG_LEVEL?: string;
+
+  /** Disclosed in a member's DROP account under § 7621(b). Optional. */
+  readonly DROP_AGENT_NAME?: string;
+  readonly DROP_AGENT_EMAIL?: string;
+  readonly DROP_AGENT_TRADE_NAME?: string;
 }

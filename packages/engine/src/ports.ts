@@ -6,6 +6,7 @@
  * (SQLite, filesystem, in-process scheduler, fetch/Playwright, SMTP).
  * See docs/adr/0001-ports-and-adapters.md.
  */
+import type { DropAgentIdentity, DropStep } from './drop.ts';
 import type { JobKind } from './types.ts';
 
 // --- Time ------------------------------------------------------------------
@@ -143,21 +144,35 @@ export interface DropRequest {
   readonly email: string;
 }
 
-export interface DropSubmission {
-  readonly accepted: boolean;
-  readonly reference?: string;
-  readonly reason?: string;
+/**
+ * The outcome of asking the channel to make a DROP request.
+ *
+ * `member_action_required` is not a failure — it is the correct answer under
+ * the current regulations, which require the consumer to pass a State
+ * residency check no agent can pass for them. See packages/engine/src/drop.ts.
+ */
+export type DropSubmission =
+  | { readonly kind: 'member_action_required'; readonly steps: readonly DropStep[]; readonly instructions: string }
+  | { readonly kind: 'accepted'; readonly reference: string }
+  | { readonly kind: 'ineligible'; readonly reason: string }
+  | { readonly kind: 'unavailable'; readonly reason: string };
+
+export interface DropStatus {
+  readonly state: string;
+  readonly updatedAt: number;
 }
 
 /**
  * California's Delete Request and Opt-out Platform. Live since 1 Jan 2026;
- * brokers must poll it every 45 days since 1 Aug 2026.
- * See docs/research/05-legal-basis.md.
+ * registered brokers must retrieve requests every 45 days since 1 Aug 2026.
+ * See docs/research/05-legal-basis.md and packages/engine/src/drop.ts.
  */
 export interface DropChannel {
   readonly available: boolean;
+  /** Disclosed in the member's DROP account under § 7621(b), when configured. */
+  readonly agent: DropAgentIdentity | undefined;
   submit(request: DropRequest): Promise<DropSubmission>;
-  pollStatus(reference: string): Promise<{ state: string; updatedAt: number } | undefined>;
+  pollStatus(reference: string): Promise<DropStatus | undefined>;
 }
 
 export interface LetterRequest {

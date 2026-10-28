@@ -283,6 +283,29 @@ CREATE TABLE IF NOT EXISTS broker_rate (
 );
 `,
   },
+  {
+    id: 2,
+    name: 'drop_requests',
+    sql: `
+CREATE TABLE IF NOT EXISTS drop_request (
+  id TEXT PRIMARY KEY,
+  member_id TEXT NOT NULL,
+  case_id TEXT,
+  state TEXT NOT NULL,
+  reference_enc BLOB,
+  agent_name TEXT,
+  agent_email TEXT,
+  submitted_at INTEGER,
+  brokers_must_retrieve_by INTEGER,
+  amendable_from INTEGER,
+  status_meaningful_from INTEGER,
+  last_checked_at INTEGER,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_drop_member ON drop_request(member_id, state);
+`,
+  },
 ];
 
 const MIGRATION_TABLE = `

@@ -5,7 +5,7 @@ import {
   DEFAULT_CONFIG,
   fromHex,
   migrate,
-  NullDropChannel,
+  GuidedDropChannel,
   NullLetterDispatch,
   Store,
   systemClock,
@@ -81,7 +81,11 @@ export async function composeWorker(env: WorkerEnv): Promise<EngineContext> {
         ? new HttpApiMailer(env.MAIL_ENDPOINT, env.MAIL_API_KEY)
         : { async send() { throw new Error('no mail provider configured: set MAIL_ENDPOINT and MAIL_API_KEY'); } },
     inbound: new EmailRoutingInbound(env.INBOUND_LOCAL ?? 'optout', env.INBOUND_DOMAIN),
-    drop: new NullDropChannel(),
+    drop: new GuidedDropChannel(
+      env.DROP_AGENT_NAME && env.DROP_AGENT_EMAIL
+        ? { fullName: env.DROP_AGENT_NAME, email: env.DROP_AGENT_EMAIL, tradeName: env.DROP_AGENT_TRADE_NAME }
+        : undefined,
+    ),
     letters: new NullLetterDispatch(),
     clock: systemClock,
   };

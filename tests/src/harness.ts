@@ -17,7 +17,7 @@ import {
   type Member,
   type Ports,
 } from '@deletewe/engine';
-import { NullDropChannel, NullLetterDispatch } from '@deletewe/engine';
+import { GuidedDropChannel, NullLetterDispatch } from '@deletewe/engine';
 import { FileBlobStore, InProcessQueue, OutboxMailer, PlusAddressInbound, SqliteDatabase } from '@deletewe/adapters-node';
 import { FixtureBrowserDriver, type FixtureRoute } from '@deletewe/browser';
 
@@ -87,7 +87,7 @@ export async function createHarness(options: HarnessOptions): Promise<Harness> {
     browser,
     mailer,
     inbound,
-    drop: new NullDropChannel(),
+    drop: new GuidedDropChannel({ fullName: 'Test Agent', email: 'agent@agent.test', tradeName: 'deletewe test' }),
     letters: new NullLetterDispatch(),
     clock,
   };

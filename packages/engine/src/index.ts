@@ -3,6 +3,7 @@ export * from './crypto.ts';
 export * from './db/migrations.ts';
 export * from './db/store.ts';
 export * from './documents.ts';
+export * from './drop.ts';
 export * from './errors.ts';
 export * from './ids.ts';
 export * from './letter.ts';
@@ -26,5 +27,6 @@ export * from './pipeline/tasks.ts';
 export * from './pipeline/verify.ts';
 
 export * from './usecases/account.ts';
+export * from './usecases/drop.ts';
 export * from './usecases/enrol.ts';
 export * from './usecases/review.ts';

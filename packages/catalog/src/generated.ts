@@ -531,19 +531,19 @@ export const BUNDLED_BROKERS: readonly BundledBroker[] = [
     "definition": {
       "id": "california-drop",
       "name": "California DROP (Delete Request and Opt-out Platform)",
-      "homepage": "https://cppa.ca.gov",
-      "version": "1.0.0",
+      "homepage": "https://privacy.ca.gov",
+      "version": "2.0.0",
       "category": "other",
       "jurisdictions": [
         "US-CA"
       ],
       "hosts": [
-        "cppa.ca.gov",
-        "www.cppa.ca.gov"
+        "privacy.ca.gov",
+        "cppa.ca.gov"
       ],
       "automation": {
         "level": "manual",
-        "reason": "Submitting to a state platform needs operator registration, credentials and legal review"
+        "reason": "Cal. Code Regs. tit. 11 § 7620(a) requires the consumer to submit through DROP after the Agency verifies California residency via the California Identity Gateway or Login.gov. § 7621(a) lets an authorized agent \"aid in\" a request, not make one. No agent submission API exists; the DROP API (§§ 7610-7613) is the data-broker side, a role a removal agent must not occupy."
       },
       "search": {
         "method": "none"
@@ -560,13 +560,14 @@ export const BUNDLED_BROKERS: readonly BundledBroker[] = [
       },
       "opt_out": {
         "method": "drop",
+        "url": "https://privacy.ca.gov/drop/",
         "required_fields": [
           "full_name",
           "email",
           "jurisdiction"
         ],
         "steps": [],
-        "instructions": "California runs a single deletion request that reaches every registered\ndata broker at once. Since 1 August 2026 brokers must check it at least\nevery 45 days and act within 45 days. For a California resident this is\nboth free and stronger than asking brokers one at a time, so do it even\nif you do nothing else. This instance is not connected to the platform;\nsubmit it yourself at the link below.\n"
+        "instructions": "California runs a single deletion request that reaches every registered\ndata broker at once — including ones this catalogue has no procedure for.\nIt is free, and for a California resident it is stronger than asking\nbrokers one at a time.\n\nWe cannot submit it for you: the portal verifies your residency through a\ngovernment identity check, and the regulations let an agent aid a request\nrather than make one. {{full_name}} submits it; we hold the clock\nafterwards and remind you to check.\n\nConfirmation for {{email}} comes from the portal, not from us, and in\n{{jurisdiction}} a data broker is forbidden from emailing you to verify a\nDROP request.\n"
       },
       "verification": {
         "method": "none",
@@ -574,7 +575,7 @@ export const BUNDLED_BROKERS: readonly BundledBroker[] = [
         "window_hours": 72
       },
       "relist": {
-        "interval_days": 180
+        "interval_days": 45
       },
       "evidence": {
         "capture": [
@@ -589,13 +590,15 @@ export const BUNDLED_BROKERS: readonly BundledBroker[] = [
         "daily_cap": 200
       },
       "references": [
-        "https://cppa.ca.gov/data_broker_registry/",
-        "https://www.recordinglaw.com/news/california-delete-act-drop-deletion-mandate/"
+        "https://privacy.ca.gov/drop/",
+        "https://consumer.drop.privacy.ca.gov",
+        "https://www.cppa.ca.gov/regulations/pdf/ccpa_updates_accessible_deletion_mechanism_text.pdf",
+        "https://privacy.ca.gov/drop-for-data-brokers/technical-specifications/"
       ],
-      "notes": "Not a data broker: a statutory channel modelled as a catalogue entry so the\nintegration point is concrete rather than hypothetical. See\ndocs/research/05-legal-basis.md and docs/architecture.md section 11.\n",
+      "notes": "Timeline encoded from the regulations:\n  § 7612(a)  brokers must retrieve deletion lists every 45 calendar days\n  § 7620(d)  a consumer may not amend or cancel for the first 45 days\n  § 7621(b)  the agent's name, email and trade name must be in the consumer's\n             DROP account before submission\n  § 7621(c)  an agent may not cancel a request unless expressly directed\n  § 7622(a)  a residency classification may be challenged within 10 days\n  § 7616(c)  a data broker must not contact a consumer to verify a DROP request\nCalPrivacy tells consumers status can take up to 90 days.\n",
       "enabled": true
     },
-    "sha256": "6b1c13935cc3dd8ab8891d4d5cd9ad6ef073fa1ace9bcbfdf92a4497e46485ef"
+    "sha256": "484c968bcbbca11c8a8c01144423eb6732c78cb9adce6ace4466e93eed8f9097"
   },
   {
     "definition": {

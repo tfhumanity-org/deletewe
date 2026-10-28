@@ -5,7 +5,8 @@ import { newToken } from '../ids.ts';
 import { redact } from '../logger.ts';
 import { missingFields, project, render, type FieldProjection } from '../projection.ts';
 import type { PageHandle } from '../ports.ts';
-import type { CaseFile, Listing } from '../types.ts';
+import type { CaseFile, Listing, Profile } from '../types.ts';
+import { DROP_CONSUMER_PORTAL } from '../drop.ts';
 import { renderLetterPdf } from '../letter.ts';
 import { capture, captureText, Transcript, type CaptureParams } from './evidence.ts';
 import { dispatchAllowed, recordFailure, recordSuccess } from './health.ts';
@@ -377,30 +378,11 @@ async function submitDrop(
   params: SubmitParams,
   caseFile: CaseFile,
   definition: BrokerDefinition,
-  profile: { names: readonly { first: string; middle?: string; last: string }[]; emails: readonly string[]; jurisdiction: string },
+  profile: Profile,
 ): Promise<SubmitResult> {
   const name = profile.names[0];
   const email = profile.emails[0];
   if (!name || !email) return { kind: 'blocked', reason: 'missing_profile_fields' };
-
-  if (!ctx.ports.drop.available) {
-    await ctx.store.updateCase(params.memberId, params.caseId, { state: 'task_pending' });
-    const taskId = await createGuidedTask(ctx, {
-      memberId: params.memberId,
-      dek: params.dek,
-      caseId: params.caseId,
-      kind: 'drop_unavailable',
-      brokerName: definition.name,
-      instructions:
-        'California runs a single deletion request that reaches every registered data broker. This instance is not connected to it, so submit the request yourself at the state portal — it is free, and it is stronger than asking each broker individually.',
-      deepLink: 'https://cppa.ca.gov/',
-    });
-    return { kind: 'handed_off', reason: 'channel_unavailable', taskId };
-  }
-
-  if (!(await withinRateLimit(ctx, caseFile.brokerId, definition))) {
-    return { kind: 'blocked', reason: 'rate_limited' };
-  }
 
   const result = await ctx.ports.drop.submit({
     memberId: params.memberId,
@@ -408,8 +390,44 @@ async function submitDrop(
     fullName: [name.first, name.middle, name.last].filter(Boolean).join(' '),
     email,
   });
-  if (!result.accepted) return { kind: 'blocked', reason: result.reason ?? 'channel_unavailable' };
-  return finishSubmission(ctx, params, caseFile, definition);
+
+  switch (result.kind) {
+    case 'accepted': {
+      // Reserved for a future agent submission API. Today nothing returns this.
+      await ctx.store.recordDropSubmission({
+        memberId: params.memberId,
+        dek: params.dek,
+        caseId: params.caseId,
+        reference: result.reference,
+        submittedAt: ctx.ports.clock.now(),
+      });
+      return finishSubmission(ctx, params, caseFile, definition);
+    }
+
+    case 'member_action_required': {
+      // The expected path. The member does the one part only they can do, and
+      // we hold the statutory clock. See packages/engine/src/drop.ts.
+      await ctx.store.updateCase(params.memberId, params.caseId, { state: 'task_pending' });
+      await ctx.store.setListingStatus(params.memberId, caseFile.listingId, 'task_pending');
+      const taskId = await createGuidedTask(ctx, {
+        memberId: params.memberId,
+        dek: params.dek,
+        caseId: params.caseId,
+        kind: 'drop_unavailable',
+        brokerName: definition.name,
+        instructions: result.instructions,
+        deepLink: DROP_CONSUMER_PORTAL,
+        dueInHours: 24 * 14,
+      });
+      return { kind: 'handed_off', reason: 'member_action_required', taskId };
+    }
+
+    case 'ineligible':
+      return { kind: 'blocked', reason: 'not_eligible' };
+
+    case 'unavailable':
+      return { kind: 'blocked', reason: result.reason };
+  }
 }
 
 // --- Fully manual ----------------------------------------------------------

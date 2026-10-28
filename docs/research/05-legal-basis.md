@@ -103,11 +103,42 @@ But DROP does not make the product obsolete, for four reasons:
    were re-listed.
 4. It does not touch search-engine results, forums, or the non-broker web.
 
-**Our position:** DROP is a *channel*, not a competitor. `deletewe` treats it as
-one submission method among several, used first where eligible because it is
-cheaper and stronger, with per-broker scraping as the complement. The
-integration point is specified in [architecture.md](../architecture.md) and
-stubbed in the code — see "what's stubbed" in the README.
+### What the regulations actually permit an agent to do
+
+Read before designing anything against DROP. Cal. Code Regs. tit. 11,
+Article 4 [SOURCED — [CPPA proposed text](https://www.cppa.ca.gov/regulations/pdf/ccpa_updates_accessible_deletion_mechanism_text.pdf)]:
+
+| Section | Text |
+| --- | --- |
+| § 7620(a) | "Consumers **must** submit their deletion request through the DROP." Residency may be verified by the Agency first; if it cannot be verified, the consumer cannot submit. |
+| § 7620(b) | Consumers may add date of birth, email address, phone number, and pseudonymous identifiers such as a MAID. |
+| § 7620(d) | "A consumer may amend or cancel a deletion request made through the DROP **no sooner than 45 days** after submission." |
+| § 7621(a) | "An authorized agent may **aid in** a consumer's deletion request." |
+| § 7621(b) | The agent's full name, email address, and trade name (if a business) must be disclosed through the consumer's DROP account **prior to submitting**. |
+| § 7621(c) | "An authorized agent may not cancel a consumer's deletion request unless expressly directed by the consumer." |
+| § 7622(a) | A residency classification may be challenged within 10 calendar days. |
+| § 7616(c) | "A data broker shall not contact consumers to verify their deletion requests submitted through the DROP." |
+| § 7612(a) | A data broker must retrieve its deletion lists "at least once every 45 calendar days". |
+
+Residency verification runs through the **California Identity Gateway** or
+**Login.gov** [SOURCED — [consumer portal](https://privacy.ca.gov/drop/)], and
+the consumer portal is `https://consumer.drop.privacy.ca.gov`, with status at
+`/dropstatus`.
+
+**The decisive finding: there is no agent or consumer submission API.** The
+DROP API that exists (§§ 7610–7613, [technical specifications](https://privacy.ca.gov/drop-for-data-brokers/technical-specifications/),
+v1.2.0) is the *data-broker* side — a DROP account with an EIN, an access fee
+of $550–$6,600 depending on month of first access (§ 7611), and retrieval of
+hashed consumer deletion lists. A removal agent is not a data broker and must
+not register as one. [SOURCED]
+
+**Our position:** DROP is a *channel*, not a competitor, and the only honest
+integration is a guided one. `deletewe` gives an eligible member the ordered
+steps, pre-computes the agent disclosure § 7621(b) requires, and then holds the
+statutory clock — 45 days for brokers to retrieve, 45 before the member may
+amend or cancel, 90 before CalPrivacy considers status meaningful. It never
+reports a submission it did not make. See
+[architecture.md § 11](../architecture.md#11-california-drop).
 
 ## 5.4 Other US states
 

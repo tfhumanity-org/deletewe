@@ -4,6 +4,7 @@ import {
   addProfileEntry,
   CONSENT_DOCUMENT,
   decideListing,
+  dropOverview,
   deleteAccount,
   completeGuidedTask,
   enqueueFullScan,
@@ -14,6 +15,7 @@ import {
   isEngineError,
   mandateDocument,
   pendingReviews,
+  recordDropSubmission,
   removeProfileEntry,
   revokeAuthority,
   signMandate,
@@ -34,6 +36,7 @@ import {
   LoginPage,
   MandatePage,
   ProfilePage,
+  DropPage,
   ReportsPage,
   ReviewPage,
   SignupPage,
@@ -234,6 +237,7 @@ export function createApp(options: AppOptions): Hono {
           found: rows.length,
         }}
         hasMandate={(await ctx.store.activeMandate(session.memberId)) !== undefined}
+        dropPrompt={dropPromptFor(await dropOverview(ctx, session))}
       />,
     );
   });
@@ -385,6 +389,38 @@ export function createApp(options: AppOptions): Hono {
     if (result instanceof Response) return result;
     const queued = await enqueueFullScan(ctx, result.session.memberId);
     return c.redirect(`/profile?scanned=${String(queued)}`);
+  });
+
+  // --- California DROP -----------------------------------------------------
+
+  app.get('/drop', async (c) => {
+    const session = await requireMember(c);
+    if (session instanceof Response) return session;
+    const view = await dropOverview(ctx, session);
+    return c.html(<DropPage view={view} csrf={session.csrf} now={ctx.ports.clock.now()} />);
+  });
+
+  app.post('/drop', async (c) => {
+    const result = await guard(c);
+    if (result instanceof Response) return result;
+    const { session, form } = result;
+
+    const rawDate = text(form, 'submittedAt');
+    const submittedAt = rawDate ? Date.parse(`${rawDate}T12:00:00Z`) : undefined;
+
+    try {
+      await recordDropSubmission(ctx, {
+        memberId: session.memberId,
+        dek: session.dek,
+        reference: text(form, 'reference') || undefined,
+        submittedAt: Number.isNaN(submittedAt) ? undefined : submittedAt,
+      });
+      return c.redirect('/drop');
+    } catch (error) {
+      const view = await dropOverview(ctx, session);
+      const message = isEngineError(error) ? error.message : 'Could not record that.';
+      return c.html(<DropPage view={view} csrf={session.csrf} now={ctx.ports.clock.now()} error={message} />, 400);
+    }
   });
 
   // --- reports and evidence ------------------------------------------------
@@ -594,6 +630,12 @@ export function createApp(options: AppOptions): Hono {
   });
 
   return app;
+}
+
+/** Only nag a Californian who has not yet used the strongest channel open to them. */
+function dropPromptFor(view: { eligible: boolean; state: string }): 'available' | 'submitted' | undefined {
+  if (!view.eligible) return undefined;
+  return view.state === 'not_started' ? 'available' : 'submitted';
 }
 
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {

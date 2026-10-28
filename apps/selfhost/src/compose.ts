@@ -6,7 +6,7 @@ import {
   CryptoService,
   DEFAULT_CONFIG,
   migrate,
-  NullDropChannel,
+  GuidedDropChannel,
   NullLetterDispatch,
   runJob,
   Store,
@@ -41,6 +41,13 @@ export interface SelfHostConfig {
   readonly mailApiKey?: string;
   readonly logLevel: LogLevel;
   readonly secureCookies: boolean;
+  /**
+   * Disclosed in the member's DROP account under § 7621(b). Leave unset and
+   * members submit in their own name, which works identically.
+   */
+  readonly dropAgentName?: string;
+  readonly dropAgentEmail?: string;
+  readonly dropAgentTradeName?: string;
 }
 
 export function configFromEnv(env: NodeJS.ProcessEnv = process.env): SelfHostConfig {
@@ -57,6 +64,9 @@ export function configFromEnv(env: NodeJS.ProcessEnv = process.env): SelfHostCon
     mailApiKey: env['DELETEWE_MAIL_API_KEY'],
     logLevel: (env['DELETEWE_LOG_LEVEL'] as LogLevel | undefined) ?? 'info',
     secureCookies: baseUrl.startsWith('https://'),
+    dropAgentName: env['DELETEWE_DROP_AGENT_NAME'],
+    dropAgentEmail: env['DELETEWE_DROP_AGENT_EMAIL'],
+    dropAgentTradeName: env['DELETEWE_DROP_AGENT_TRADE_NAME'],
   };
 }
 
@@ -114,7 +124,11 @@ export async function compose(config: SelfHostConfig = configFromEnv()): Promise
         ? new HttpApiMailer(config.mailEndpoint, config.mailApiKey)
         : new OutboxMailer(join(config.dataDir, 'outbox')),
     inbound: new PlusAddressInbound(config.inboundLocalPart, config.inboundDomain),
-    drop: new NullDropChannel(),
+    drop: new GuidedDropChannel(
+      config.dropAgentName && config.dropAgentEmail
+        ? { fullName: config.dropAgentName, email: config.dropAgentEmail, tradeName: config.dropAgentTradeName }
+        : undefined,
+    ),
     letters: new NullLetterDispatch(),
     clock: systemClock,
   };

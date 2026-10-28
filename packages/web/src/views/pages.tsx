@@ -196,7 +196,8 @@ export const DashboardPage: FC<{
   openTasks: number;
   totals: { removed: number; sent: number; waitingOnYou: number; blocked: number; found: number };
   hasMandate: boolean;
-}> = ({ rows, pendingReviews, openTasks, totals, hasMandate }) => (
+  dropPrompt?: 'available' | 'submitted';
+}> = ({ rows, pendingReviews, openTasks, totals, hasMandate, dropPrompt }) => (
   <Layout title="Dashboard" nav={MEMBER_NAV('/dashboard')}>
     <h1>Where you stand</h1>
 
@@ -204,6 +205,12 @@ export const DashboardPage: FC<{
       <div class="notice warn">
         You have not appointed us as your agent yet, so nothing will be sent.{' '}
         <a href="/mandate">Sign the authorization</a>.
+      </div>
+    ) : null}
+    {dropPrompt === 'available' ? (
+      <div class="notice">
+        You are in California, so one free state request reaches every registered broker at once — more than
+        this instance covers on its own. <a href="/drop">Start with that</a>.
       </div>
     ) : null}
     {pendingReviews > 0 ? (
@@ -807,5 +814,181 @@ export const ErrorPage: FC<{ status: number; message: string }> = ({ status, mes
     <p>
       <a href="/dashboard">Back to your dashboard</a>
     </p>
+  </Layout>
+);
+
+// --- California DROP -------------------------------------------------------
+
+export interface DropView {
+  readonly eligible: boolean;
+  readonly state: string;
+  readonly reference: string | null;
+  readonly submittedAt: number | null;
+  readonly brokersMustRetrieveBy: number | null;
+  readonly amendableFrom: number | null;
+  readonly statusMeaningfulFrom: number | null;
+  readonly steps: readonly { ordinal: number; title: string; detail: string; url?: string }[];
+  readonly agentDisclosure: { fullName: string; email: string; tradeName?: string } | undefined;
+}
+
+export const DropPage: FC<{ view: DropView; csrf: string; now: number; error?: string }> = ({
+  view,
+  csrf,
+  now,
+  error,
+}) => (
+  <Layout
+    title="California DROP"
+    nav={MEMBER_NAV('/drop')}
+    flash={error ? { kind: 'bad', message: error } : undefined}
+  >
+    <h1>One request, every registered broker</h1>
+    <p class="lede">
+      California runs a single deletion request that reaches every data broker registered with the state —
+      including ones this instance has no procedure for. It is free. If you do nothing else here, do this.
+    </p>
+
+    {!view.eligible ? (
+      <div class="notice warn">
+        DROP covers California residents only. Your account is set to a different jurisdiction, so this
+        channel is not open to you. Everything else on your dashboard still applies.
+      </div>
+    ) : null}
+
+    <div class="card">
+      <h2 style="margin-top:0">Why you have to do this part</h2>
+      <p>
+        We submit opt-outs for you everywhere else. Not here, and not because we could not be bothered: the
+        portal verifies your California residency through a government identity check, and the regulations
+        let an authorized agent <em>aid</em> a request rather than make one. Nobody can pass that check for
+        you.
+      </p>
+      <p class="muted" style="font-size:.85rem">
+        Cal. Code Regs. tit. 11 §§ 7620(a), 7621(a). The DROP API that does exist is for data brokers
+        retrieving deletion lists — a role we are not in and will not register for.
+      </p>
+    </div>
+
+    {view.agentDisclosure ? (
+      <div class="card">
+        <h2 style="margin-top:0">Enter these as your authorized agent</h2>
+        <p class="muted">
+          § 7621(b) requires the agent's details to be in your DROP account <em>before</em> you submit.
+          Copy them exactly. If you would rather not name an agent, skip it — the request works the same and
+          we simply will not appear on it.
+        </p>
+        <table class="compare">
+          <tbody>
+            <tr>
+              <td>Full name</td>
+              <td><code>{view.agentDisclosure.fullName}</code></td>
+            </tr>
+            <tr>
+              <td>Email</td>
+              <td><code>{view.agentDisclosure.email}</code></td>
+            </tr>
+            {view.agentDisclosure.tradeName ? (
+              <tr>
+                <td>Trade name</td>
+                <td><code>{view.agentDisclosure.tradeName}</code></td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+    ) : null}
+
+    {view.state === 'submitted' || view.state === 'processing' ? (
+      <div class="card">
+        <h2 style="margin-top:0">Your request is in</h2>
+        <table class="compare">
+          <tbody>
+            {view.reference ? (
+              <tr>
+                <td>Reference</td>
+                <td><code>{view.reference}</code></td>
+              </tr>
+            ) : null}
+            <tr>
+              <td>Submitted</td>
+              <td>{view.submittedAt ? date(view.submittedAt) : 'unknown'}</td>
+            </tr>
+            <tr>
+              <td>Brokers must have retrieved it by</td>
+              <td>
+                {view.brokersMustRetrieveBy ? date(view.brokersMustRetrieveBy) : '—'}{' '}
+                {view.brokersMustRetrieveBy && now > view.brokersMustRetrieveBy ? (
+                  <span class="pill ok">elapsed</span>
+                ) : (
+                  <span class="pill idle">pending</span>
+                )}
+              </td>
+            </tr>
+            <tr>
+              <td>You can amend or cancel from</td>
+              <td>{view.amendableFrom ? date(view.amendableFrom) : '—'}</td>
+            </tr>
+            <tr>
+              <td>Status should be meaningful by</td>
+              <td>{view.statusMeaningfulFrom ? date(view.statusMeaningfulFrom) : '—'}</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="row">
+          <a class="btn secondary" href="https://consumer.drop.privacy.ca.gov/dropstatus" rel="noreferrer">
+            Check your status at the state portal
+          </a>
+        </p>
+        <p class="muted" style="font-size:.85rem">
+          A data broker is forbidden from contacting you to verify a DROP request (§ 7616(c)). Treat any
+          email claiming to do so as suspect.
+        </p>
+      </div>
+    ) : (
+      <>
+        <div class="card">
+          <h2 style="margin-top:0">What to do</h2>
+          <ol>
+            {view.steps.map((step) => (
+              <li style="margin-bottom:.75rem">
+                <strong>{step.title}</strong>
+                <br />
+                {step.detail}
+                {step.url ? (
+                  <>
+                    <br />
+                    <a href={step.url} rel="noreferrer">{step.url}</a>
+                  </>
+                ) : null}
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        {view.eligible ? (
+          <form method="post" action="/drop" class="card">
+            <Csrf token={csrf} />
+            <h2 style="margin-top:0">Tell us once you have submitted it</h2>
+            <p class="muted">
+              We cannot see your DROP account, so this is you telling us. We take your word for the act, not
+              the outcome — what we do with it is start the statutory clock and remind you to check.
+            </p>
+            <label>
+              Reference number (optional)
+              <input type="text" name="reference" placeholder="as shown by the portal" />
+              <span class="hint">Stored encrypted, like everything else. Leave blank if you did not note it.</span>
+            </label>
+            <label>
+              Date submitted
+              <input type="date" name="submittedAt" />
+              <span class="hint">Leave blank for today.</span>
+            </label>
+            <p>
+              <button type="submit">I have submitted my DROP request</button>
+            </p>
+          </form>
+        ) : null}
+      </>
+    )}
   </Layout>
 );

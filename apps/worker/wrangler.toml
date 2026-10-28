@@ -13,6 +13,11 @@ BASE_URL = "https://deletewe.example"
 INBOUND_DOMAIN = "deletewe.example"
 INBOUND_LOCAL = "optout"
 LOG_LEVEL = "info"
+# Disclosed in a member's DROP account as their authorized agent
+# (Cal. Code Regs. tit. 11 § 7621(b)). Optional.
+# DROP_AGENT_NAME = "Your Name"
+# DROP_AGENT_EMAIL = "you@example.com"
+# DROP_AGENT_TRADE_NAME = "Your Business"
 
 # Secrets (never in this file):
 #   wrangler secret put MASTER_KEY     # 64 hex chars

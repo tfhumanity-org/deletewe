@@ -110,6 +110,7 @@ export const MEMBER_NAV = (current: string) =>
     { href: '/dashboard', label: 'Dashboard' },
     { href: '/review', label: 'Review' },
     { href: '/tasks', label: 'Your tasks' },
+    { href: '/drop', label: 'California DROP' },
     { href: '/profile', label: 'Profile' },
     { href: '/reports', label: 'Reports' },
     { href: '/account', label: 'Account' },

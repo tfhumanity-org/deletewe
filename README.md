@@ -132,6 +132,12 @@ npm run cli -- delete you@example.com --yes
 
 Full design in [docs/architecture.md](docs/architecture.md). The short version:
 
+- **California DROP is promoted, not buried.** One state request reaches every
+  registered broker. We cannot submit it — the portal verifies residency
+  through a government identity check and the regulations let an agent *aid* a
+  request, not make one — so we give the member the exact steps, our agent
+  disclosure details, and then hold the statutory clock (45 days for brokers to
+  retrieve, 90 for status). See [docs/architecture.md](docs/architecture.md#11-california-drop).
 - **Brokers are data, not code.** One schema-validated YAML file per broker
   ([docs/broker-catalog.md](docs/broker-catalog.md)). A definition can only
   reach hosts it declares and read profile fields it declares, so a malicious
@@ -216,7 +222,6 @@ Stated plainly rather than buried:
 | **Legal review** | The consent, mandate and limited-power-of-attorney documents in `packages/engine/src/documents.ts` are engineering artefacts, not reviewed instruments. A lawyer must review them before this operates for anyone other than its own author. Open questions are listed in [docs/research/05-legal-basis.md](docs/research/05-legal-basis.md#57-open-legal-questions-for-human-review). |
 | **Verifying the broker definitions** | Someone has to run each procedure against the real site, with their own data and their own consent, and set `verified_at`. Until then coverage is theoretical. |
 | **A postal/fax provider** | Letter PDFs are generated and downloadable; dispatching them needs a vendor, and that vendor sees name and address in plaintext. `LetterDispatch` is the seam. |
-| **DROP integration** | California's statutory channel needs operator registration, credentials, and legal review. `DropChannel` is the seam; `NullDropChannel` ships and raises a guided task pointing you at the state portal. |
 | **A domain and inbound mail** | Most opt-outs complete only when an emailed link is clicked, often within 24 hours. That needs a domain you control with per-job addressing routed back in. |
 | **An outbound mail provider** | Until `DELETEWE_MAIL_ENDPOINT` is set, outbound mail is written to `data/outbox` as files instead of being sent. |
 | **A penetration test** | Before any hosted launch. |

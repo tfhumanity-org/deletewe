@@ -13,6 +13,10 @@ const USAGE = `deletewe — personal data removal agent
   status <email>                  per-broker status for one member
   tasks <email>                   the steps only that member can do
   task done <task-id> <email>     mark a guided task complete
+  drop <email>                    California DROP status, or what to do next
+  drop submitted <email> [ref]    record that the member submitted their request
+  drop cancel <email>             mark a DROP request cancelled (member-directed)
+
   report <email>                  generate and print a period report
   export <email>                  print the full data export as JSON
   delete <email> --yes            delete an account, irreversibly
@@ -83,6 +87,11 @@ async function dispatch(composed: Composed, group: string, rest: string[]): Prom
       const { completeGuidedTask } = await import('@deletewe/engine');
       await completeGuidedTask(composed.ctx, { memberId: found.row.id, dek, taskId, done: true });
       return { text: 'Marked done. The re-check still has to prove the removal.' };
+    }
+    case 'drop': {
+      if (rest[0] === 'submitted') return commands.dropSubmitted(composed, need(1, 'email'), rest[2]);
+      if (rest[0] === 'cancel') return commands.dropCancel(composed, need(1, 'email'));
+      return commands.dropStatus(composed, need(0, 'email'));
     }
     case 'report':
       return commands.report(composed, need(0, 'email'));

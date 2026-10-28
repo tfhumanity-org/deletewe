@@ -1,4 +1,5 @@
 import type { CryptoService } from '../crypto.ts';
+import type { DropRequestState } from '../drop.ts';
 import { EngineError } from '../errors.ts';
 import { newId } from '../ids.ts';
 import type { Clock, Database, SqlParam } from '../ports.ts';
@@ -1070,6 +1071,107 @@ export class Store {
     return out;
   }
 
+  // --- DROP ----------------------------------------------------------------
+
+  /**
+   * California's statutory channel has its own lifecycle and its own clock, so
+   * it gets its own row rather than being squeezed into a case. The reference
+   * number the member reads off the portal is personal data and is encrypted
+   * like everything else. See packages/engine/src/drop.ts.
+   */
+  async recordDropSubmission(params: {
+    memberId: string;
+    dek: Uint8Array;
+    caseId: string | null;
+    reference: string | null;
+    submittedAt: number;
+    agent?: { fullName: string; email: string };
+  }): Promise<string> {
+    const now = this.clock.now();
+    const timeline = {
+      brokersMustRetrieveBy: params.submittedAt + 45 * 86_400_000,
+      amendableFrom: params.submittedAt + 45 * 86_400_000,
+      statusMeaningfulFrom: params.submittedAt + 90 * 86_400_000,
+    };
+
+    const existing = await this.db.get<{ id: string }>(
+      "SELECT id FROM drop_request WHERE member_id = ? AND state IN ('submitted','processing')",
+      [params.memberId],
+    );
+    const id = existing?.id ?? newId(now);
+    const referenceEnc = params.reference
+      ? await this.crypto.encryptField(params.dek, params.memberId, params.reference)
+      : null;
+
+    if (existing) {
+      await this.db.run(
+        `UPDATE drop_request SET reference_enc = COALESCE(?, reference_enc), submitted_at = ?,
+           brokers_must_retrieve_by = ?, amendable_from = ?, status_meaningful_from = ?, updated_at = ?
+         WHERE id = ? AND member_id = ?`,
+        [
+          referenceEnc, params.submittedAt, timeline.brokersMustRetrieveBy, timeline.amendableFrom,
+          timeline.statusMeaningfulFrom, now, id, params.memberId,
+        ],
+      );
+      return id;
+    }
+
+    await this.db.run(
+      `INSERT INTO drop_request (id, member_id, case_id, state, reference_enc, agent_name, agent_email,
+         submitted_at, brokers_must_retrieve_by, amendable_from, status_meaningful_from, created_at, updated_at)
+       VALUES (?, ?, ?, 'submitted', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id, params.memberId, params.caseId, referenceEnc,
+        params.agent?.fullName ?? null, params.agent?.email ?? null,
+        params.submittedAt, timeline.brokersMustRetrieveBy, timeline.amendableFrom,
+        timeline.statusMeaningfulFrom, now, now,
+      ],
+    );
+    return id;
+  }
+
+  async getDropRequest(
+    memberId: string,
+    dek: Uint8Array,
+  ): Promise<
+    | {
+        id: string;
+        state: DropRequestState;
+        reference: string | null;
+        submittedAt: number | null;
+        brokersMustRetrieveBy: number | null;
+        amendableFrom: number | null;
+        statusMeaningfulFrom: number | null;
+        lastCheckedAt: number | null;
+      }
+    | undefined
+  > {
+    const row = await this.db.get<Record<string, SqlParam>>(
+      'SELECT * FROM drop_request WHERE member_id = ? ORDER BY created_at DESC LIMIT 1',
+      [memberId],
+    );
+    if (!row) return undefined;
+    return {
+      id: String(row['id']),
+      state: String(row['state']) as DropRequestState,
+      reference: row['reference_enc']
+        ? await this.crypto.decryptField(dek, memberId, asBytes(row['reference_enc']))
+        : null,
+      submittedAt: row['submitted_at'] === null ? null : Number(row['submitted_at']),
+      brokersMustRetrieveBy: row['brokers_must_retrieve_by'] === null ? null : Number(row['brokers_must_retrieve_by']),
+      amendableFrom: row['amendable_from'] === null ? null : Number(row['amendable_from']),
+      statusMeaningfulFrom: row['status_meaningful_from'] === null ? null : Number(row['status_meaningful_from']),
+      lastCheckedAt: row['last_checked_at'] === null ? null : Number(row['last_checked_at']),
+    };
+  }
+
+  async setDropState(memberId: string, state: DropRequestState, checkedAt?: number): Promise<void> {
+    await this.db.run(
+      'UPDATE drop_request SET state = ?, last_checked_at = COALESCE(?, last_checked_at), updated_at = ? WHERE member_id = ?',
+      [state, checkedAt ?? null, this.clock.now(), memberId],
+    );
+  }
+
   // --- Sessions ------------------------------------------------------------
 
   async createSession(params: { memberId?: string; adminId?: string; ttlMs: number; csrfToken: string }): Promise<string> {
@@ -1163,6 +1265,7 @@ export class Store {
     const tables = [
       'identifier', 'listing', 'match_result', 'case_file', 'job', 'scheduled_job',
       'evidence', 'task', 'report', 'event', 'session', 'consent', 'mandate', 'verification_token',
+      'drop_request',
     ];
     for (const table of tables) {
       await this.db.run(`DELETE FROM ${table} WHERE member_id = ?`, [memberId]);

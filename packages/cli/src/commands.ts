@@ -1,10 +1,13 @@
 import { coverage, loadCatalog } from '@deletewe/catalog';
 import {
+  cancelDropRequest,
   deleteAccount,
+  dropOverview,
   enqueueFullScan,
   exportMemberData,
   generateReport,
   hashPassword,
+  recordDropSubmission,
   tick,
   type EngineContext,
 } from '@deletewe/engine';
@@ -171,4 +174,91 @@ export async function createAdmin(composed: Composed, username: string, password
   if (password.length < 12) return { text: 'Operator password must be at least 12 characters.', exitCode: 1 };
   const id = await composed.ctx.store.createAdmin(username, await hashPassword(password));
   return { text: `Created operator "${username}" (${id}).` };
+}
+
+// --- California DROP -------------------------------------------------------
+
+const day = (ms: number | null) => (ms === null ? '—' : new Date(ms).toISOString().slice(0, 10));
+
+export async function dropStatus(composed: Composed, email: string): Promise<CommandResult> {
+  const found = await composed.ctx.store.findMemberByEmail(email);
+  if (!found) return { text: `No account for ${email}.`, exitCode: 1 };
+
+  const dek = await composed.ctx.store.unwrapDekFor(found.row);
+  const view = await dropOverview(composed.ctx, { memberId: found.row.id, dek });
+
+  if (!view.eligible) {
+    return { text: 'DROP covers California residents only; this account is set to another jurisdiction.' };
+  }
+
+  if (view.state === 'not_started') {
+    const lines = [
+      'No DROP request on record. One free state request reaches every registered broker at once.',
+      '',
+      'We cannot submit it for you — the portal verifies California residency through a',
+      'government identity check, and the regulations let an agent aid a request, not make one.',
+      '',
+    ];
+    for (const step of view.steps) {
+      lines.push(`${String(step.ordinal)}. ${step.title}`);
+      for (const wrapped of step.detail.match(/.{1,74}(\s|$)/g) ?? []) lines.push(`   ${wrapped.trim()}`);
+      if (step.url) lines.push(`   ${step.url}`);
+      lines.push('');
+    }
+    if (view.agentDisclosure) {
+      lines.push(
+        'Enter these as your authorized agent, before submitting:',
+        `  name:       ${view.agentDisclosure.fullName}`,
+        `  email:      ${view.agentDisclosure.email}`,
+        ...(view.agentDisclosure.tradeName ? [`  trade name: ${view.agentDisclosure.tradeName}`] : []),
+        '',
+      );
+    }
+    lines.push(`Then: deletewe drop submitted ${email} [reference]`);
+    return { text: lines.join('\n') };
+  }
+
+  return {
+    text: [
+      `state                         ${view.state}`,
+      `reference                     ${view.reference ?? '(not recorded)'}`,
+      `submitted                     ${day(view.submittedAt)}`,
+      `brokers must retrieve by      ${day(view.brokersMustRetrieveBy)}   (reg. 7612(a), 45 days)`,
+      `amendable or cancellable from ${day(view.amendableFrom)}   (reg. 7620(d), 45 days)`,
+      `status meaningful by          ${day(view.statusMeaningfulFrom)}   (CalPrivacy guidance, 90 days)`,
+      '',
+      'Check status: https://consumer.drop.privacy.ca.gov/dropstatus',
+      'A data broker must not email you to verify a DROP request (reg. 7616(c)).',
+    ].join('\n'),
+  };
+}
+
+export async function dropSubmitted(
+  composed: Composed,
+  email: string,
+  reference?: string,
+): Promise<CommandResult> {
+  const found = await composed.ctx.store.findMemberByEmail(email);
+  if (!found) return { text: `No account for ${email}.`, exitCode: 1 };
+
+  const dek = await composed.ctx.store.unwrapDekFor(found.row);
+  const { timeline } = await recordDropSubmission(composed.ctx, { memberId: found.row.id, dek, reference });
+
+  return {
+    text: [
+      'Recorded. The statutory clock is running:',
+      `  brokers must have retrieved it by ${day(timeline.brokersMustRetrieveBy)}`,
+      `  you can amend or cancel from      ${day(timeline.amendableFrom)}`,
+      `  status should be meaningful by    ${day(timeline.statusMeaningfulFrom)}`,
+    ].join('\n'),
+  };
+}
+
+export async function dropCancel(composed: Composed, email: string): Promise<CommandResult> {
+  const found = await composed.ctx.store.findMemberByEmail(email);
+  if (!found) return { text: `No account for ${email}.`, exitCode: 1 };
+
+  const dek = await composed.ctx.store.unwrapDekFor(found.row);
+  await cancelDropRequest(composed.ctx, { memberId: found.row.id, dek });
+  return { text: 'Marked cancelled here. Cancel it at the state portal too — we cannot do that for you.' };
 }
