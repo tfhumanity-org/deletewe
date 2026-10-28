@@ -15,12 +15,14 @@ import {
   type EngineContext,
   type JobMessage,
   type LogLevel,
+  type InboundMailSource,
   type LogRecord,
   type Ports,
 } from '@deletewe/engine';
 import {
   FileBlobStore,
   HttpApiMailer,
+  inboundSourceFromEnv,
   InProcessQueue,
   keysFromEnv,
   loadOrCreateKeyFile,
@@ -28,6 +30,7 @@ import {
   PlusAddressInbound,
   SqliteDatabase,
 } from '@deletewe/adapters-node';
+import { PlaywrightBrowserDriver } from '@deletewe/adapters-node';
 import { FetchBrowserDriver } from '@deletewe/browser';
 
 export interface SelfHostConfig {
@@ -48,6 +51,8 @@ export interface SelfHostConfig {
   readonly dropAgentName?: string;
   readonly dropAgentEmail?: string;
   readonly dropAgentTradeName?: string;
+  /** `fetch` (default, no binaries) or `playwright` (renders, screenshots). */
+  readonly browserDriver: 'fetch' | 'playwright';
 }
 
 export function configFromEnv(env: NodeJS.ProcessEnv = process.env): SelfHostConfig {
@@ -67,11 +72,13 @@ export function configFromEnv(env: NodeJS.ProcessEnv = process.env): SelfHostCon
     dropAgentName: env['DELETEWE_DROP_AGENT_NAME'],
     dropAgentEmail: env['DELETEWE_DROP_AGENT_EMAIL'],
     dropAgentTradeName: env['DELETEWE_DROP_AGENT_TRADE_NAME'],
+    browserDriver: env['DELETEWE_BROWSER'] === 'playwright' ? 'playwright' : 'fetch',
   };
 }
 
 export interface Composed {
   readonly ctx: EngineContext;
+  readonly inbound: InboundMailSource;
   readonly queue: InProcessQueue;
   readonly db: SqliteDatabase;
   readonly config: SelfHostConfig;
@@ -108,6 +115,7 @@ export async function compose(config: SelfHostConfig = configFromEnv()): Promise
   await syncCatalog(store, result.brokers);
 
   const queue = new InProcessQueue(2);
+  const inboundSource = inboundSourceFromEnv(process.env, join(config.dataDir, 'maildrop'), systemClock.now);
   const engineConfig: EngineConfig = {
     ...DEFAULT_CONFIG,
     baseUrl: config.baseUrl,
@@ -118,7 +126,7 @@ export async function compose(config: SelfHostConfig = configFromEnv()): Promise
     db,
     blobs: new FileBlobStore(join(config.dataDir, 'blobs')),
     queue,
-    browser: new FetchBrowserDriver(),
+    browser: config.browserDriver === 'playwright' ? new PlaywrightBrowserDriver() : new FetchBrowserDriver(),
     mailer:
       config.mailEndpoint && config.mailApiKey
         ? new HttpApiMailer(config.mailEndpoint, config.mailApiKey)
@@ -145,6 +153,7 @@ export async function compose(config: SelfHostConfig = configFromEnv()): Promise
 
   return {
     ctx,
+    inbound: inboundSource,
     queue,
     db,
     config,

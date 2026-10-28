@@ -135,6 +135,29 @@ export interface InboundMail {
   tokenFrom(address: string): string | undefined;
 }
 
+/**
+ * Where inbound confirmation mail is collected from.
+ *
+ * Separate from `InboundMail`, which only does addressing: on Cloudflare,
+ * Email Routing pushes messages to the Worker and there is nothing to poll,
+ * while a self-hosted instance has to go and fetch them.
+ *
+ * Most people-search opt-outs complete only when an emailed link is clicked,
+ * often within about 24 hours, so this is the component that decides whether
+ * the product works at all. See docs/research/03-removal-mechanics.md.
+ */
+export interface InboundMailSource {
+  readonly kind: string;
+  /**
+   * Returns newly arrived messages and marks them consumed, so a message is
+   * handled once. Implementations must not drop a message they have not
+   * returned.
+   */
+  collect(limit?: number): Promise<InboundMessage[]>;
+  /** Cheap reachability check, for `deletewe mail test`. */
+  check(): Promise<{ ok: boolean; detail: string }>;
+}
+
 // --- Statutory and physical channels --------------------------------------
 
 export interface DropRequest {

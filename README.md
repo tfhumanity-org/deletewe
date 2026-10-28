@@ -74,7 +74,7 @@ build step, which is why self-hosting has no compile dependencies).
 
 ```bash
 npm ci
-npm run verify        # lint, typecheck, 210 tests — all must pass
+npm run verify        # lint, typecheck, 264 tests — all must pass
 ```
 
 Then start the app. **`npm run dev` runs in the foreground**, so give it its own
@@ -111,6 +111,8 @@ the engine against that server over real HTTP.
 ```bash
 npm run cli -- help
 npm run cli -- catalog report          # honest coverage breakdown
+npm run cli -- explain you@example.com spokeo   # run ONE definition, store nothing
+npm run cli -- mail test ops@example.com        # prove the mail paths work
 npm run cli -- scan you@example.com    # queue and run a scan
 npm run cli -- status you@example.com  # per-broker status
 npm run cli -- tasks you@example.com   # the steps only you can do
@@ -118,6 +120,71 @@ npm run cli -- report you@example.com
 npm run cli -- export you@example.com > my-data.json
 npm run cli -- delete you@example.com --yes
 ```
+
+## Verifying a broker definition
+
+The highest-value work in this project, and the reason `explain` exists:
+
+```bash
+npm run cli -- explain you@example.com spokeo
+```
+
+It runs one definition against its live site and shows what it extracted and
+why each result scored as it did. **It stores nothing and sends nothing** — the
+scan half of the pipeline only reads, so pointing it at a real broker risks
+one polite HTTP request and nothing else.
+
+```
+Spokeo  (spokeo)
+  driver      playwright (screenshot 184203 bytes)
+  url         https://www.spokeo.com/ada-lovelace
+  response    HTTP 200
+  results     3 matched the result selector
+
+  [1] score 0.94  ###################.  -> would ask you to confirm
+        name         Ada Lovelace       ~ Ada Byron Lovelace     1.00 x0.40
+        locality     Berkeley           ~ Berkeley               1.00 x0.20
+        region       CA                 ~ CA                     1.00 x0.15
+        age          46                 ~ 46                     1.00 x0.25
+
+  [2] score 0.31  ######..............  -> discarded, not stored
+        reason: scored below the review threshold
+
+  Stored: nothing. Sent: nothing.
+```
+
+When it looks right, set `verified_at` in the definition and run
+`npm run catalog:bundle && npm run verify`.
+
+## Optional upgrades
+
+Neither is installed by default, and neither is in the Docker image.
+
+**A real browser**, for JS-heavy broker pages and screenshots:
+
+```bash
+npm install playwright && npx playwright install chromium
+export DELETEWE_BROWSER=playwright
+```
+
+The default fetch driver completes plain HTML forms and needs no binaries, but
+cannot render or screenshot. The Playwright driver also enforces the host
+allowlist at the *network* layer — a rendered page pulls scripts, images and
+XHR of its own, and none of those may leave the hosts a definition declared.
+
+**IMAP inbound mail**, instead of dropping `.eml` files into `data/maildrop`:
+
+```bash
+npm install imapflow
+export DELETEWE_IMAP_HOST=imap.example.com
+export DELETEWE_IMAP_USER=optout@example.com
+export DELETEWE_IMAP_PASSWORD=...
+```
+
+This one matters more than it looks: **20 of the 29 shipped definitions
+complete only when an emailed confirmation link is followed**, usually within
+about 24 hours. Without working inbound mail those opt-outs submit and then
+stall. Check both directions with `npm run cli -- mail test you@example.com`.
 
 ## How it works
 

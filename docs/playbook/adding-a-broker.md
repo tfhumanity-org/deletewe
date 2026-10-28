@@ -187,10 +187,40 @@ packages/catalog/fixtures/acme-people-search/
 
 ## 8. Verify against the live site
 
-The step that makes the definition real.
+The step that makes the definition real. Do it in two stages, read-only first.
 
-- [ ] Run the scan against the broker with your own profile.
-- [ ] Confirm the match and let the opt-out run.
+### 8a. Read-only: does it find you?
+
+```bash
+npm run cli -- explain you@example.com acme-people-search
+```
+
+This runs the definition against the real site and shows what it extracted and
+why each result scored as it did. **It stores nothing and sends nothing** — the
+scan half of the pipeline only reads — so it is safe to repeat while you adjust
+selectors.
+
+Read the output for:
+
+- [ ] `results` greater than zero. Zero means either you are genuinely not
+      listed, or the result selector no longer matches. Open the URL it printed
+      and look.
+- [ ] Your own record scoring high enough to reach review.
+- [ ] Same-name strangers scoring *below* the review threshold. If a decoy
+      scores highly, the weights are wrong — fix that before anything is sent.
+- [ ] No `WARNING: the definition weights ... but the page never yielded those
+      fields`. A weighted field that never appears only depresses every score.
+- [ ] A listing URL on the broker's own host.
+
+Declaring `search.page_marker` — any selector present on a valid results page,
+such as the search form — lets the engine tell "not listed" apart from "the
+page changed". Without it, an empty page is simply reported as empty.
+
+### 8b. The real thing
+
+Only once 8a looks right, and only with your own data:
+
+- [ ] Run a full scan, confirm the match, and let the opt-out run.
 - [ ] Complete any guided task yourself.
 - [ ] Wait, then re-check and confirm the listing is gone.
 - [ ] Set `verified_at: "YYYY-MM-DD"`.

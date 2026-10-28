@@ -1,4 +1,4 @@
-import { parse, type HTMLElement } from 'node-html-parser';
+import { parse, HTMLElement as HTMLElementCtor, type HTMLElement } from 'node-html-parser';
 import type { ElementSnapshot } from '@deletewe/engine';
 
 /** Pure-JS DOM handling, so the same code runs on Workers and on Node. */
@@ -27,6 +27,20 @@ export function toSnapshot(element: HTMLElement): ElementSnapshot {
  * to the element itself so a definition can read an attribute off the result
  * container (`{ selector: 'self', attr: 'href' }`).
  */
+/**
+ * Builds a snapshot from an element's rendered outerHTML.
+ *
+ * Lets a real-browser driver reuse the same extraction semantics as the
+ * fixture driver: take the DOM after scripts have run, then query within it
+ * locally. `ElementSnapshot.find` is synchronous, so a live round-trip to the
+ * browser for every field is not an option anyway.
+ */
+export function snapshotFromHtml(outerHtml: string): ElementSnapshot {
+  const root = parse(outerHtml);
+  const element = root.childNodes.find((n) => n instanceof HTMLElementCtor) as HTMLElement | undefined;
+  return toSnapshot(element ?? (root as unknown as HTMLElement));
+}
+
 export function selectWithin(root: HTMLElement, selector: string): HTMLElement | undefined {
   if (selector === 'self' || selector === ':scope') return root;
   try {

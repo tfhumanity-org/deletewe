@@ -95,6 +95,13 @@ const searchBlock = z.discriminatedUnion('method', [
     /** Supports `{name_slug}`, `{first_name}`, `{last_name}`, `{city}`, `{region}`. */
     url_template: httpsUrl,
     result_selector: selector,
+    /**
+     * A selector present on any valid results page, listed or not — a search
+     * form, a results header. Without it, zero results is ambiguous: it could
+     * mean the member is not listed, or that the page changed and our result
+     * selector no longer matches. Declaring one lets those be told apart.
+     */
+    page_marker: selector.optional(),
     fields: z.record(z.string(), extractor),
   }),
   z.object({ method: z.literal('none') }),

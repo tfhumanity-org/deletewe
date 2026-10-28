@@ -10,6 +10,7 @@ import type { InboundMail, InboundMessage, Mailer, OutboundMessage } from '@dele
  * reasonable thing to want from software that writes letters in your name.
  */
 export class OutboxMailer implements Mailer {
+  readonly kind = 'outbox';
   readonly sent: OutboundMessage[] = [];
 
   constructor(private readonly dir?: string) {}
@@ -29,6 +30,8 @@ export class OutboxMailer implements Mailer {
  * runs on Workers and Node alike.
  */
 export class HttpApiMailer implements Mailer {
+  readonly kind = 'http-api';
+
   constructor(
     private readonly endpoint: string,
     private readonly apiKey: string,
@@ -48,8 +51,15 @@ export class HttpApiMailer implements Mailer {
         text: message.text,
       }),
     });
+
     if (!response.ok) {
-      throw new Error(`mail provider returned ${String(response.status)}`);
+      // The provider's body usually says what was wrong (bad key, unverified
+      // sender domain). Surface it: a silent send failure means an opt-out
+      // that never happened and a member who is told it did.
+      const detail = await response.text().catch(() => '');
+      throw new Error(
+        `mail provider returned ${String(response.status)}${detail ? `: ${detail.slice(0, 300)}` : ''}`,
+      );
     }
   }
 }
@@ -173,4 +183,47 @@ export async function readMaildrop(dir: string, now: () => number = Date.now): P
     out.push(parseEmail(await readFile(join(dir, name), 'utf8'), now()));
   }
   return out;
+}
+
+
+/**
+ * Sends a message to an address the operator controls, to prove the outbound
+ * path works before anything real depends on it.
+ *
+ * A provider that rejects mail — wrong key, unverified sender domain — looks
+ * from inside like a broker ignoring a request. Finding that out on purpose
+ * is cheaper than finding out from a member's report six weeks later.
+ */
+export async function verifyOutboundMail(
+  mailer: Mailer,
+  params: { from: string; to: string; replyTo: string },
+): Promise<{ ok: boolean; detail: string }> {
+  const kind = (mailer as { kind?: string }).kind ?? 'unknown';
+  try {
+    await mailer.send({
+      from: params.from,
+      to: params.to,
+      replyTo: params.replyTo,
+      subject: 'deletewe outbound mail test',
+      text: [
+        'This is a test from a deletewe instance.',
+        '',
+        `Sent from:  ${params.from}`,
+        `Reply-to:   ${params.replyTo}`,
+        '',
+        'If you received this, the outbound path works. If the reply-to address',
+        'also reaches your instance, inbound verification will work too — which',
+        'is what most broker opt-outs actually depend on.',
+      ].join('\n'),
+    });
+    return {
+      ok: true,
+      detail:
+        kind === 'outbox'
+          ? 'written to the outbox directory (no provider configured, so nothing was actually sent)'
+          : `sent via the ${kind} provider to ${params.to}`,
+    };
+  } catch (error) {
+    return { ok: false, detail: error instanceof Error ? error.message : String(error) };
+  }
 }

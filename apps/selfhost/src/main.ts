@@ -1,9 +1,8 @@
 import { serve } from '@hono/node-server';
 import { handleInboundMessage, tick } from '@deletewe/engine';
-import { parseEmail } from '@deletewe/adapters-node';
 import { createApp } from '@deletewe/web';
 import { join } from 'node:path';
-import { mkdir, readdir, readFile, rename } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { compose } from './compose.ts';
 
 const TICK_INTERVAL_MS = 60_000;
@@ -26,37 +25,25 @@ if (composed.catalogIssues > 0) {
 const app = createApp({ ctx, secureCookies: config.secureCookies });
 
 /**
- * Inbound verification mail for self-hosters: drop `.eml` files into
- * `data/maildrop` (from an IMAP fetch, a procmail rule, whatever) and they are
- * routed to the job waiting on them.
+ * Inbound confirmation mail. Either an IMAP mailbox we poll, or `.eml` files
+ * dropped into `data/maildrop` — most opt-outs complete only when a link in
+ * one of these is followed, so this is the part that decides whether the
+ * product works. See docs/research/03-removal-mechanics.md.
  */
-const maildrop = join(config.dataDir, 'maildrop');
-const processed = join(maildrop, 'processed');
-await mkdir(processed, { recursive: true });
+await mkdir(join(config.dataDir, 'maildrop'), { recursive: true });
 
-async function drainMaildrop(): Promise<void> {
-  // Snapshot the filenames first and archive only those. Re-reading the
-  // directory afterwards would also sweep up anything that arrived while we
-  // were following confirmation links, losing it unprocessed.
-  const names = (await readdir(maildrop)).filter((n) => n.endsWith('.eml')).sort();
-  if (names.length === 0) return;
-
-  for (const name of names) {
-    const path = join(maildrop, name);
-    try {
-      const result = await handleInboundMessage(ctx, parseEmail(await readFile(path, 'utf8'), Date.now()));
-      ctx.log.info('inbound_mail_handled', { outcome: result.kind });
-    } catch {
-      ctx.log.error('inbound_mail_failed');
-    }
-    await rename(path, join(processed, name));
+async function drainInbound(): Promise<void> {
+  const messages = await composed.inbound.collect();
+  for (const message of messages) {
+    const result = await handleInboundMessage(ctx, message);
+    ctx.log.info('inbound_mail_handled', { outcome: result.kind, source: composed.inbound.kind });
   }
 }
 
 const timer = setInterval(() => {
   void (async () => {
     try {
-      await drainMaildrop();
+      await drainInbound();
       await tick(ctx);
     } catch (error) {
       ctx.log.error('tick_failed', { errorCode: error instanceof Error ? error.name : 'unknown' });
@@ -68,7 +55,8 @@ const server = serve({ fetch: app.fetch, port: config.port }, (info) => {
   console.log(`deletewe listening on http://localhost:${String(info.port)}`);
   console.log(`  data directory: ${config.dataDir}`);
   console.log(`  outbound mail:  ${config.mailEndpoint ? 'provider API' : `outbox files in ${join(config.dataDir, 'outbox')}`}`);
-  console.log(`  inbound mail:   drop .eml files into ${maildrop}`);
+  console.log(`  inbound mail:   ${composed.inbound.kind}`);
+  console.log(`  browser:        ${ctx.ports.browser.kind}${ctx.ports.browser.canScreenshot ? ' (screenshots on)' : ' (no screenshots)'}`);
 });
 
 const shutdown = () => {

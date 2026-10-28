@@ -3,6 +3,7 @@ import {
   cancelDropRequest,
   deleteAccount,
   dropOverview,
+  explainScan,
   enqueueFullScan,
   exportMemberData,
   generateReport,
@@ -11,6 +12,7 @@ import {
   tick,
   type EngineContext,
 } from '@deletewe/engine';
+import { verifyOutboundMail } from '@deletewe/adapters-node';
 import { compose, type Composed } from '@deletewe/selfhost';
 
 export interface CommandResult {
@@ -261,4 +263,131 @@ export async function dropCancel(composed: Composed, email: string): Promise<Com
   const dek = await composed.ctx.store.unwrapDekFor(found.row);
   await cancelDropRequest(composed.ctx, { memberId: found.row.id, dek });
   return { text: 'Marked cancelled here. Cancel it at the state portal too — we cannot do that for you.' };
+}
+
+
+// --- Verifying a broker definition -----------------------------------------
+
+const bar = (value: number, width = 20) => '#'.repeat(Math.round(value * width)).padEnd(width, '.');
+
+/**
+ * Run one definition against its live site and show what it saw.
+ *
+ * Nothing is stored and nothing is sent: the scan half of the pipeline only
+ * reads. This is the loop for turning `verified_at: never` into a date.
+ */
+export async function explain(composed: Composed, email: string, brokerId: string): Promise<CommandResult> {
+  const found = await composed.ctx.store.findMemberByEmail(email);
+  if (!found) return { text: `No account for ${email}.`, exitCode: 1 };
+
+  const dek = await composed.ctx.store.unwrapDekFor(found.row);
+  const report = await explainScan(composed.ctx, { memberId: found.row.id, dek, brokerId });
+
+  const out: string[] = [
+    `${report.brokerName}  (${report.brokerId})`,
+    `  driver      ${report.driver}${report.screenshotBytes ? ` (screenshot ${String(report.screenshotBytes)} bytes)` : ' (no screenshot)'}`,
+  ];
+
+  if (report.skipped) {
+    out.push(`  SKIPPED     ${report.skipped}`, '', skippedHint(report.skipped));
+    return { text: out.join('\n') };
+  }
+
+  out.push(
+    `  url         ${report.searchUrl ?? '(none)'}`,
+    `  response    HTTP ${String(report.status ?? 0)}`,
+    `  results     ${String(report.resultCount)} matched the result selector`,
+    '',
+  );
+
+  if (report.resultCount === 0) {
+    out.push(
+      'No results. That is either a correct "not listed", or the result selector',
+      'no longer matches the page. Open the URL above and check which.',
+      '',
+    );
+  }
+
+  for (const candidate of report.candidates) {
+    const verdict =
+      candidate.bucket === 'auto_confirm'
+        ? 'would submit without asking'
+        : candidate.bucket === 'review'
+          ? 'would ask you to confirm'
+          : 'discarded, not stored';
+    out.push(`  [${String(candidate.index)}] score ${candidate.score.toFixed(2)}  ${bar(candidate.score)}  -> ${verdict}`);
+
+    for (const c of candidate.comparisons) {
+      out.push(
+        `        ${c.field.padEnd(12)} ${truncate(c.listingValue, 22)} ~ ${truncate(c.profileValue, 22)}  ` +
+          `${c.similarity.toFixed(2)} x${c.weight.toFixed(2)}`,
+      );
+    }
+    if (candidate.rejectedBecause) out.push(`        reason: ${candidate.rejectedBecause}`);
+    if (candidate.url) out.push(`        ${candidate.url}`);
+    out.push('');
+  }
+
+  if (report.unextractedMatchFields.length > 0) {
+    out.push(
+      `  WARNING: the definition weights ${report.unextractedMatchFields.join(', ')} but the page`,
+      '  never yielded those fields. Either fix the extraction selectors or drop',
+      '  the weights — scoring against a field that is never present only',
+      '  depresses every score.',
+      '',
+    );
+  }
+
+  out.push(
+    `  would submit without asking  ${String(report.wouldSubmit)}`,
+    `  would ask you to confirm     ${String(report.wouldAsk)}`,
+    `  discarded                    ${String(report.discarded)}`,
+    '',
+    '  Stored: nothing. Sent: nothing.',
+    '',
+    `  If this looks right, set verified_at in packages/catalog/brokers/${report.brokerId}.yaml`,
+    '  and run: npm run catalog:bundle && npm run verify',
+  );
+  return { text: out.join('\n') };
+}
+
+function truncate(value: string, width: number): string {
+  const clean = value.replace(/\s+/g, ' ').trim();
+  return (clean.length > width ? `${clean.slice(0, width - 1)}~` : clean).padEnd(width);
+}
+
+function skippedHint(skipped: string): string {
+  switch (skipped) {
+    case 'rate_limited':
+      return 'The per-broker interval has not elapsed. Wait, or lower min_interval_ms while testing.';
+    case 'no_search':
+      return 'This definition declares search: none, so there is nothing to scan. That is deliberate\nfor brokers with no public index — the member gets instructions instead.';
+    case 'broker_unavailable':
+      return 'The broker is disabled or marked broken. Check: deletewe brokers';
+    case 'no_profile':
+      return 'The member has no name on file. Add one before scanning.';
+    default:
+      return '';
+  }
+}
+
+export async function mailTest(composed: Composed, to: string): Promise<CommandResult> {
+  const inbound = await composed.inbound.check();
+  const outbound = await verifyOutboundMail(composed.ctx.ports.mailer, {
+    from: composed.config.agentEmailFrom,
+    to,
+    replyTo: composed.ctx.ports.inbound.addressFor('mailtest'),
+  });
+
+  return {
+    text: [
+      `outbound  ${outbound.ok ? 'OK  ' : 'FAIL'}  ${outbound.detail}`,
+      `inbound   ${inbound.ok ? 'OK  ' : 'FAIL'}  ${inbound.detail}  (${composed.inbound.kind})`,
+      '',
+      'Inbound is the one that matters: 20 of 29 shipped definitions complete',
+      'only when an emailed confirmation link is followed, usually within about',
+      '24 hours. Without it those opt-outs submit and then stall.',
+    ].join('\n'),
+    exitCode: outbound.ok && inbound.ok ? 0 : 1,
+  };
 }

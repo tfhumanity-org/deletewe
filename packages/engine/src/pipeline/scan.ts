@@ -1,10 +1,10 @@
 import type { BrokerDefinition, Extractor } from '@deletewe/schema';
 import type { EngineContext } from '../context.ts';
 import { EngineError } from '../errors.ts';
-import { bucketFor, scoreListing } from '../matcher.ts';
+import { bucketFor, scoreListing, type MatchBucket } from '../matcher.ts';
 import { renderSearchUrl } from '../projection.ts';
 import type { ElementSnapshot, PageHandle } from '../ports.ts';
-import type { ListingSnapshot, Profile } from '../types.ts';
+import type { ListingSnapshot, MatchResult } from '../types.ts';
 import { capture, captureText, Transcript } from './evidence.ts';
 import { dispatchAllowed, recordFailure, recordSuccess } from './health.ts';
 import { createGuidedTask } from './tasks.ts';
@@ -25,6 +25,33 @@ export interface ScanParams {
   readonly jobId?: string;
 }
 
+/** One result the broker returned, scored but not yet acted on. */
+export interface ScanCandidate {
+  readonly snapshot: ListingSnapshot;
+  readonly url: string | undefined;
+  readonly match: MatchResult;
+  readonly bucket: MatchBucket;
+}
+
+/**
+ * What a scan saw, before anything was written down.
+ *
+ * `probeScan` performs the fetch and the scoring and stops there, which makes
+ * it safe to point at a live broker while verifying a definition: no listing
+ * is stored, no case opened, no request sent. See
+ * docs/playbook/adding-a-broker.md.
+ */
+export interface ScanProbe {
+  readonly brokerId: string;
+  readonly searchUrl: string | undefined;
+  readonly status: number | undefined;
+  readonly resultCount: number;
+  readonly candidates: readonly ScanCandidate[];
+  readonly driver: string;
+  readonly screenshot: Uint8Array | undefined;
+  readonly skipped?: ScanOutcome['skipped'];
+}
+
 /**
  * Finds candidate listings for one member at one broker, scores them, and
  * routes each to auto-confirm, member review, or the bin.
@@ -33,8 +60,46 @@ export interface ScanParams {
  * consent gate on purpose: see docs/product-spec.md section 4.2.
  */
 export async function runScan(ctx: EngineContext, params: ScanParams): Promise<ScanOutcome> {
+  const probe = await probeScan(ctx, params, { captureEvidence: true });
+  if (probe.skipped) return empty(params.brokerId, probe.skipped);
+
+  const definition = ctx.catalog.get(params.brokerId);
+  if (!definition) throw new EngineError('not_found', `no definition for broker ${params.brokerId}`);
+
+  const outcome = await ingest(ctx, params, definition, probe.candidates);
+  ctx.log.child({ brokerId: params.brokerId, jobKind: 'scan' }).info('scan_complete', {
+    candidates: outcome.candidates,
+    autoConfirmed: outcome.autoConfirmed,
+    queuedForReview: outcome.queuedForReview,
+    discarded: outcome.discarded,
+  });
+  return outcome;
+}
+
+/**
+ * The read half of a scan: fetch the broker's search surface, extract each
+ * result per the definition, and score it. Writes nothing about the member.
+ *
+ * `runScan` builds on this; `explainScan` uses it on its own to verify a
+ * definition against a live site without acting on what it finds.
+ */
+export async function probeScan(
+  ctx: EngineContext,
+  params: ScanParams,
+  options: { captureEvidence?: boolean } = {},
+): Promise<ScanProbe> {
   const { memberId, dek, brokerId } = params;
   const log = ctx.log.child({ brokerId, jobKind: 'scan' });
+  const blank = (skipped: ScanOutcome['skipped']): ScanProbe => ({
+    brokerId,
+    searchUrl: undefined,
+    status: undefined,
+    resultCount: 0,
+    candidates: [],
+    driver: ctx.ports.browser.kind,
+    screenshot: undefined,
+    skipped,
+  });
 
   if (!(await ctx.store.hasConsent(memberId, 'process_pii'))) {
     throw new EngineError('consent_missing', 'member has not consented to processing');
@@ -46,18 +111,16 @@ export async function runScan(ctx: EngineContext, params: ScanParams): Promise<S
 
   const brokerRow = await ctx.store.getBroker(brokerId);
   if (!definition.enabled || (brokerRow && (!brokerRow.enabled || !dispatchAllowed(brokerRow.status)))) {
-    return empty(brokerId, 'broker_unavailable');
+    return blank('broker_unavailable');
   }
 
   if (definition.search.method === 'none') {
-    // Nothing to search. Brokers like these are handled by a standing
-    // instruction to the member rather than by pretending to cover them.
-    await ensureNoSearchTask(ctx, params, definition);
-    return empty(brokerId, 'no_search');
+    if (options.captureEvidence) await ensureNoSearchTask(ctx, params, definition);
+    return blank('no_search');
   }
 
   const profile = await ctx.store.loadProfile(memberId, dek);
-  if (profile.names.length === 0) return empty(brokerId, 'no_profile');
+  if (profile.names.length === 0) return blank('no_profile');
 
   const allowed = await ctx.store.tryConsumeRate(
     brokerId,
@@ -66,7 +129,7 @@ export async function runScan(ctx: EngineContext, params: ScanParams): Promise<S
   );
   if (!allowed) {
     log.debug('scan_rate_limited');
-    return empty(brokerId, 'rate_limited');
+    return blank('rate_limited');
   }
 
   const url = renderSearchUrl(definition.search.url_template, profile);
@@ -91,40 +154,65 @@ export async function runScan(ctx: EngineContext, params: ScanParams): Promise<S
 
     const results = await page.queryAll(definition.search.result_selector);
     if (results.length === 0) {
-      // No results is a legitimate outcome, not a breakage — but an empty page
-      // where the result container itself is gone is a selector problem.
-      const container = await page.querySelector(definition.search.result_selector.split(' ')[0] ?? 'body');
-      if (!container) {
+      // Zero results is ambiguous: the member may simply not be listed, or
+      // the page may have changed so our result selector matches nothing.
+      // Only a `page_marker` can tell those apart — deriving a container from
+      // the result selector cannot, because most are a single token and the
+      // check then just re-asks the question it is trying to answer.
+      const marker = definition.search.page_marker;
+      if (marker && !(await page.querySelector(marker))) {
         await recordFailure(ctx, brokerId, 'selector_missing', 'search', definitionSha ?? '');
-        log.warn('scan_selector_missing');
-        return empty(brokerId, 'broker_unavailable');
+        log.warn('scan_page_marker_missing');
+        return blank('broker_unavailable');
+      }
+      if (!marker) {
+        log.debug('scan_empty_no_page_marker');
       }
     }
 
-    const outcome = await ingest(ctx, params, definition, profile, results);
+    const now = ctx.ports.clock.now();
+    const member = await ctx.store.getMemberRow(memberId);
+    const autoThreshold = member?.auto_confirm_threshold ?? 1.1;
+
+    const candidates: ScanCandidate[] = results.map((element) => {
+      const snapshot = extractSnapshot(definition, element);
+      const match = scoreListing(profile, snapshot, definition.match, now);
+      return {
+        snapshot,
+        url: absolute(snapshot.url, definition),
+        match,
+        bucket: bucketFor(match, definition.match.thresholds, autoThreshold),
+      };
+    });
+
     await recordSuccess(ctx, brokerId, definitionSha ?? '');
 
-    if (definition.evidence.capture.includes('transcript')) {
-      await captureText(
-        ctx,
-        evidenceParams,
-        'transcript',
-        transcript.toJson({ brokerId, kind: 'scan', candidates: outcome.candidates }),
-        'json',
-      );
-    }
-    if (definition.evidence.capture.includes('screenshot') && ctx.ports.browser.canScreenshot) {
-      const shot = await page.screenshot();
-      if (shot) await capture(ctx, evidenceParams, 'screenshot', shot, 'png');
+    const screenshot = ctx.ports.browser.canScreenshot ? await page.screenshot() : undefined;
+
+    if (options.captureEvidence) {
+      if (definition.evidence.capture.includes('transcript')) {
+        await captureText(
+          ctx,
+          evidenceParams,
+          'transcript',
+          transcript.toJson({ brokerId, kind: 'scan', candidates: candidates.length }),
+          'json',
+        );
+      }
+      if (definition.evidence.capture.includes('screenshot') && screenshot) {
+        await capture(ctx, evidenceParams, 'screenshot', screenshot, 'png');
+      }
     }
 
-    log.info('scan_complete', {
-      candidates: outcome.candidates,
-      autoConfirmed: outcome.autoConfirmed,
-      queuedForReview: outcome.queuedForReview,
-      discarded: outcome.discarded,
-    });
-    return outcome;
+    return {
+      brokerId,
+      searchUrl: url,
+      status: page.status(),
+      resultCount: results.length,
+      candidates,
+      driver: ctx.ports.browser.kind,
+      screenshot,
+    };
   } catch (error) {
     const kind = error instanceof EngineError && error.code === 'host_not_allowlisted' ? 'host_not_allowlisted' : 'timeout';
     await recordFailure(ctx, brokerId, kind, 'search', definitionSha ?? '');
@@ -138,28 +226,20 @@ async function ingest(
   ctx: EngineContext,
   params: ScanParams,
   definition: BrokerDefinition,
-  profile: Profile,
-  results: readonly ElementSnapshot[],
+  candidates: readonly ScanCandidate[],
 ): Promise<ScanOutcome> {
   const { memberId, dek, brokerId } = params;
-  const now = ctx.ports.clock.now();
-  const member = await ctx.store.getMemberRow(memberId);
-  const autoThreshold = member?.auto_confirm_threshold ?? 1.1;
 
   let autoConfirmed = 0;
   let queuedForReview = 0;
   let discarded = 0;
 
-  for (const element of results) {
-    const snapshot = extractSnapshot(definition, element);
-    const listingUrl = absolute(snapshot.url, definition);
+  for (const candidate of candidates) {
+    const { snapshot, url: listingUrl, match: result, bucket } = candidate;
     if (!listingUrl) {
       discarded++;
       continue;
     }
-
-    const result = scoreListing(profile, snapshot, definition.match, now);
-    const bucket = bucketFor(result, definition.match.thresholds, autoThreshold);
 
     if (bucket === 'discard') {
       // Deliberately not persisted: a listing we judged is not ours is a
@@ -211,7 +291,7 @@ async function ingest(
     }
   }
 
-  return { brokerId, candidates: results.length, autoConfirmed, queuedForReview, discarded };
+  return { brokerId, candidates: candidates.length, autoConfirmed, queuedForReview, discarded };
 }
 
 export async function enqueueSubmit(ctx: EngineContext, memberId: string, caseId: string): Promise<void> {

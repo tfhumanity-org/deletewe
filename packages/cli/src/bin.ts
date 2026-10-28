@@ -9,6 +9,10 @@ const USAGE = `deletewe — personal data removal agent
   brokers list                    broker status as this instance sees it
 
   scan <email>                    queue a scan at every eligible broker, then run it
+  explain <email> <broker-id>     run ONE definition against its live site and
+                                  show what it extracted and why it scored.
+                                  Stores nothing, sends nothing.
+  mail test <address>             prove the outbound and inbound mail paths work
   run                             sweep due re-checks and run pending jobs
   status <email>                  per-broker status for one member
   tasks <email>                   the steps only that member can do
@@ -71,6 +75,11 @@ async function dispatch(composed: Composed, group: string, rest: string[]): Prom
       return commands.brokersList(composed);
     case 'scan':
       return commands.scan(composed, need(0, 'email'));
+    case 'explain':
+      return commands.explain(composed, need(0, 'email'), need(1, 'broker id'));
+    case 'mail':
+      if (rest[0] !== 'test') return { text: USAGE, exitCode: 1 };
+      return commands.mailTest(composed, need(1, 'address'));
     case 'run':
       return commands.runQueue(composed);
     case 'status':

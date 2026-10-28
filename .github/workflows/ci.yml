@@ -34,6 +34,12 @@ jobs:
       - name: Typecheck and build
         run: npm run typecheck
 
+      - name: Install Chromium for the Playwright driver tests
+        # The driver is an optional upgrade over the default fetch driver, but
+        # it is the one that renders JS-heavy broker pages and takes the
+        # screenshots reports depend on — so it gets real coverage, not a skip.
+        run: npx playwright install --with-deps chromium
+
       - name: Test
         # No network access to any real broker: every broker-facing test runs
         # against recorded fixtures or the local mock broker server.

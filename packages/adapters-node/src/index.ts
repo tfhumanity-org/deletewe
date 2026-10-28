@@ -1,4 +1,5 @@
 export * from './blobs.ts';
+export * from './inbound.ts';
 export * from './keys.ts';
 export * from './mail.ts';
 export * from './queue.ts';

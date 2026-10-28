@@ -14,7 +14,7 @@ npm ci                 # install, exactly as the lockfile says
 npm run build          # tsc -b across the project reference graph
 npm run clean          # when something is inexplicable
 
-npm run verify         # lint + typecheck + 210 tests — THE gate
+npm run verify         # lint + typecheck + 264 tests — THE gate
 npm run lint
 npm run lint:fix
 npm run typecheck

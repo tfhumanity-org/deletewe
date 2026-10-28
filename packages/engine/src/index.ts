@@ -30,3 +30,4 @@ export * from './usecases/account.ts';
 export * from './usecases/drop.ts';
 export * from './usecases/enrol.ts';
 export * from './usecases/review.ts';
+export * from './usecases/verify-definition.ts';

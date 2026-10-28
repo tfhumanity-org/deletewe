@@ -18,10 +18,17 @@ services:
       DELETEWE_DATA_DIR: /data
       DELETEWE_BASE_URL: http://localhost:8787
       DELETEWE_LOG_LEVEL: info
-      # Inbound confirmation links are what actually complete most opt-outs.
-      # Point this at a domain you control and route its mail into
-      # /data/maildrop as .eml files.
+      # Inbound confirmation links are what actually complete most opt-outs:
+      # 20 of 29 shipped definitions depend on one. Point this at a domain you
+      # control and either drop .eml files into /data/maildrop, or poll IMAP.
       DELETEWE_INBOUND_DOMAIN: localhost
+      # DELETEWE_IMAP_HOST: imap.example.com      # needs: npm install imapflow
+      # DELETEWE_IMAP_USER: optout@example.com
+      # DELETEWE_IMAP_PASSWORD: ...
+      #
+      # A real browser for JS-heavy broker pages and screenshots. Not in this
+      # image: needs `npm install playwright && npx playwright install chromium`.
+      # DELETEWE_BROWSER: playwright
       # Disclosed in a member's DROP account as their authorized agent
       # (Cal. Code Regs. tit. 11 § 7621(b)). Leave unset and members submit in
       # their own name, which works identically.
